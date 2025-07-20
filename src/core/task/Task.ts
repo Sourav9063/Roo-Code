@@ -1,4 +1,5 @@
 import * as path from "path"
+import * as vscode from "vscode"
 import os from "os"
 import crypto from "crypto"
 import EventEmitter from "events"
@@ -1652,6 +1653,7 @@ export class Task extends EventEmitter<ClineEvents> {
 				maxReadFileLine !== -1,
 				{
 					maxConcurrentFileReads,
+					useAgentRules: vscode.workspace.getConfiguration("roo-cline").get<boolean>("useAgentRules") ?? true,
 				},
 			)
 		})()
