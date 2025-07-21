@@ -13,6 +13,7 @@ import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
 import { Task } from "../../core/task/Task"
 import { DEFAULT_WRITE_DELAY_MS } from "@roo-code/types"
+import { Package } from "../../shared/package"
 
 import { DecorationController } from "./DecorationController"
 
@@ -181,7 +182,10 @@ export class DiffViewProvider {
 		}
 	}
 
-	async saveChanges(diagnosticsEnabled: boolean = true, writeDelayMs: number = DEFAULT_WRITE_DELAY_MS): Promise<{
+	async saveChanges(
+		diagnosticsEnabled: boolean = true,
+		writeDelayMs: number = DEFAULT_WRITE_DELAY_MS,
+	): Promise<{
 		newProblemsMessage: string | undefined
 		userEdits: string | undefined
 		finalContent: string | undefined
@@ -198,7 +202,16 @@ export class DiffViewProvider {
 			await updatedDocument.save()
 		}
 
-		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false, preserveFocus: true })
+		// Check if focus disruption prevention is enabled
+		const preventFocusDisruption = vscode.workspace
+			.getConfiguration(Package.name)
+			.get<boolean>("preventFocusDisruption", false)
+
+		if (!preventFocusDisruption) {
+			// Original behavior: show the document
+			await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false, preserveFocus: true })
+		}
+
 		await this.closeAllDiffViews()
 
 		// Getting diagnostics before and after the file edit is a better approach than
@@ -216,22 +229,22 @@ export class DiffViewProvider {
 		// and can address them accordingly. If problems don't change immediately after
 		// applying a fix, won't be notified, which is generally fine since the
 		// initial fix is usually correct and it may just take time for linters to catch up.
-		
+
 		let newProblemsMessage = ""
-		
+
 		if (diagnosticsEnabled) {
 			// Add configurable delay to allow linters time to process and clean up issues
 			// like unused imports (especially important for Go and other languages)
 			// Ensure delay is non-negative
 			const safeDelayMs = Math.max(0, writeDelayMs)
-			
+
 			try {
 				await delay(safeDelayMs)
 			} catch (error) {
 				// Log error but continue - delay failure shouldn't break the save operation
 				console.warn(`Failed to apply write delay: ${error}`)
 			}
-			
+
 			const postDiagnostics = vscode.languages.getDiagnostics()
 
 			const newProblems = await diagnosticsToProblemsString(
@@ -387,7 +400,12 @@ export class DiffViewProvider {
 			await vscode.workspace.applyEdit(edit)
 			await updatedDocument.save()
 
-			if (this.documentWasOpen) {
+			// Check if focus disruption prevention is enabled
+			const preventFocusDisruption = vscode.workspace
+				.getConfiguration(Package.name)
+				.get<boolean>("preventFocusDisruption", false)
+
+			if (this.documentWasOpen && !preventFocusDisruption) {
 				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
 					preview: false,
 					preserveFocus: true,
@@ -520,10 +538,19 @@ export class DiffViewProvider {
 				}),
 			)
 
+			// Check if focus disruption prevention is enabled
+			const preventFocusDisruption = vscode.workspace
+				.getConfiguration(Package.name)
+				.get<boolean>("preventFocusDisruption", false)
+
 			// Pre-open the file as a text document to ensure it doesn't open in preview mode
 			// This fixes issues with files that have custom editor associations (like markdown preview)
 			vscode.window
-				.showTextDocument(uri, { preview: false, viewColumn: vscode.ViewColumn.Active, preserveFocus: true })
+				.showTextDocument(uri, {
+					preview: false,
+					viewColumn: vscode.ViewColumn.Active,
+					preserveFocus: preventFocusDisruption, // Preserve focus if setting is enabled
+				})
 				.then(() => {
 					// Execute the diff command after ensuring the file is open as text
 					return vscode.commands.executeCommand(
@@ -533,7 +560,7 @@ export class DiffViewProvider {
 						}),
 						uri,
 						`${fileName}: ${fileExists ? `${DIFF_VIEW_LABEL_CHANGES}` : "New File"} (Editable)`,
-						{ preserveFocus: true },
+						{ preserveFocus: preventFocusDisruption }, // Preserve focus if setting is enabled
 					)
 				})
 				.then(

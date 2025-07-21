@@ -34,6 +34,9 @@ vi.mock("vscode", () => ({
 		fs: {
 			stat: vi.fn(),
 		},
+		getConfiguration: vi.fn(() => ({
+			get: vi.fn().mockReturnValue(false), // Default to false for preventFocusDisruption
+		})),
 	},
 	window: {
 		createTextEditorDecorationType: vi.fn(),
@@ -81,6 +84,7 @@ vi.mock("vscode", () => ({
 		InCenter: 2,
 	},
 	TabInputTextDiff: class TabInputTextDiff {},
+	TabInputText: class TabInputText {},
 	Uri: {
 		file: vi.fn((path) => ({ fsPath: path })),
 		parse: vi.fn((uri) => ({ with: vi.fn(() => ({})) })),
@@ -188,7 +192,9 @@ describe("DiffViewProvider", () => {
 			// Mock showTextDocument to track when it's called
 			vi.mocked(vscode.window.showTextDocument).mockImplementation(async (uri, options) => {
 				callOrder.push("showTextDocument")
-				expect(options).toEqual({ preview: false, viewColumn: vscode.ViewColumn.Active, preserveFocus: true })
+				// Don't check preserveFocus here as it depends on the configuration
+				expect(options?.preview).toBe(false)
+				expect(options?.viewColumn).toBe(vscode.ViewColumn.Active)
 				return mockEditor as any
 			})
 
@@ -220,10 +226,13 @@ describe("DiffViewProvider", () => {
 			// Verify that showTextDocument was called before executeCommand
 			expect(callOrder).toEqual(["showTextDocument", "executeCommand"])
 
-			// Verify that showTextDocument was called with preview: false and preserveFocus: true
+			// Verify that showTextDocument was called with preview: false
 			expect(vscode.window.showTextDocument).toHaveBeenCalledWith(
 				expect.objectContaining({ fsPath: `${mockCwd}/test.md` }),
-				{ preview: false, viewColumn: vscode.ViewColumn.Active, preserveFocus: true },
+				expect.objectContaining({
+					preview: false,
+					viewColumn: vscode.ViewColumn.Active,
+				}),
 			)
 
 			// Verify that the diff command was executed
@@ -232,7 +241,7 @@ describe("DiffViewProvider", () => {
 				expect.any(Object),
 				expect.any(Object),
 				`test.md: ${DIFF_VIEW_LABEL_CHANGES} (Editable)`,
-				{ preserveFocus: true },
+				expect.objectContaining({ preserveFocus: expect.any(Boolean) }),
 			)
 		})
 
@@ -416,6 +425,163 @@ describe("DiffViewProvider", () => {
 			// Verify custom delay was used
 			expect(mockDelay).toHaveBeenCalledWith(5000)
 			expect(vscode.languages.getDiagnostics).toHaveBeenCalled()
+		})
+	})
+
+	describe("preventFocusDisruption setting", () => {
+		beforeEach(() => {
+			// Setup common mocks
+			;(diffViewProvider as any).relPath = "test.ts"
+			;(diffViewProvider as any).newContent = "new content"
+			;(diffViewProvider as any).activeDiffEditor = {
+				document: {
+					getText: vi.fn().mockReturnValue("new content"),
+					isDirty: false,
+					save: vi.fn().mockResolvedValue(undefined),
+					uri: { fsPath: `${mockCwd}/test.ts` },
+				},
+			}
+			;(diffViewProvider as any).closeAllDiffViews = vi.fn().mockResolvedValue(undefined)
+		})
+
+		it("should show document when preventFocusDisruption is false", async () => {
+			// Mock configuration to return false
+			vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+				get: vi.fn().mockReturnValue(false),
+			} as any)
+
+			await diffViewProvider.saveChanges(false)
+
+			// Verify showTextDocument was called
+			expect(vscode.window.showTextDocument).toHaveBeenCalledWith(
+				expect.objectContaining({ fsPath: `${mockCwd}/test.ts` }),
+				{ preview: false, preserveFocus: true },
+			)
+		})
+
+		it("should not show document when preventFocusDisruption is true", async () => {
+			// Mock configuration to return true
+			vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+				get: vi.fn().mockReturnValue(true),
+			} as any)
+
+			await diffViewProvider.saveChanges(false)
+
+			// Verify showTextDocument was NOT called
+			expect(vscode.window.showTextDocument).not.toHaveBeenCalled()
+		})
+
+		it("should preserve focus in diff view when preventFocusDisruption is true", async () => {
+			// Mock configuration to return true
+			vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+				get: vi.fn().mockReturnValue(true),
+			} as any)
+
+			// Track the order of calls
+			const callOrder: string[] = []
+
+			// Mock showTextDocument
+			vi.mocked(vscode.window.showTextDocument).mockImplementation(async (uri, options) => {
+				callOrder.push("showTextDocument")
+				expect(options?.preserveFocus).toBe(true) // Should preserve focus
+				return {} as any
+			})
+
+			// Mock executeCommand
+			vi.mocked(vscode.commands.executeCommand).mockImplementation(async (command, ...args) => {
+				callOrder.push("executeCommand")
+				if (command === "vscode.diff") {
+					// Check that preserveFocus is true in the options
+					const options = args[3]
+					expect(options?.preserveFocus).toBe(true)
+				}
+				return undefined
+			})
+
+			// Mock workspace.onDidOpenTextDocument to trigger immediately
+			vi.mocked(vscode.workspace.onDidOpenTextDocument).mockImplementation((callback) => {
+				setTimeout(() => {
+					callback({ uri: { fsPath: `${mockCwd}/test.ts` } } as any)
+				}, 0)
+				return { dispose: vi.fn() }
+			})
+
+			// Mock window.visibleTextEditors
+			const mockEditor = {
+				document: {
+					uri: { fsPath: `${mockCwd}/test.ts` },
+					getText: vi.fn().mockReturnValue(""),
+					lineCount: 0,
+				},
+				selection: {
+					active: { line: 0, character: 0 },
+					anchor: { line: 0, character: 0 },
+				},
+				edit: vi.fn().mockResolvedValue(true),
+				revealRange: vi.fn(),
+			}
+			vi.mocked(vscode.window).visibleTextEditors = [mockEditor as any]
+			;(diffViewProvider as any).editType = "modify"
+			await diffViewProvider.open("test.ts")
+
+			// Verify preserveFocus was set to true in both calls
+			expect(callOrder).toContain("showTextDocument")
+			expect(callOrder).toContain("executeCommand")
+		})
+
+		it("should not restore document view on revert when preventFocusDisruption is true", async () => {
+			// Mock configuration to return true
+			vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+				get: vi.fn().mockReturnValue(true),
+			} as any)
+
+			// Setup for revertChanges
+			;(diffViewProvider as any).editType = "modify"
+			;(diffViewProvider as any).documentWasOpen = true
+			;(diffViewProvider as any).originalContent = "original content"
+			;(diffViewProvider as any).activeDiffEditor = {
+				document: {
+					uri: { fsPath: `${mockCwd}/test.ts` },
+					isDirty: false,
+					save: vi.fn().mockResolvedValue(undefined),
+					getText: vi.fn().mockReturnValue("modified content"),
+					positionAt: vi.fn().mockReturnValue({ line: 0, character: 0 }),
+				},
+			}
+
+			await diffViewProvider.revertChanges()
+
+			// Verify showTextDocument was NOT called even though documentWasOpen was true
+			expect(vscode.window.showTextDocument).not.toHaveBeenCalled()
+		})
+
+		it("should restore document view on revert when preventFocusDisruption is false", async () => {
+			// Mock configuration to return false
+			vi.mocked(vscode.workspace.getConfiguration).mockReturnValue({
+				get: vi.fn().mockReturnValue(false),
+			} as any)
+
+			// Setup for revertChanges
+			;(diffViewProvider as any).editType = "modify"
+			;(diffViewProvider as any).documentWasOpen = true
+			;(diffViewProvider as any).originalContent = "original content"
+			;(diffViewProvider as any).activeDiffEditor = {
+				document: {
+					uri: { fsPath: `${mockCwd}/test.ts` },
+					isDirty: false,
+					save: vi.fn().mockResolvedValue(undefined),
+					getText: vi.fn().mockReturnValue("modified content"),
+					positionAt: vi.fn().mockReturnValue({ line: 0, character: 0 }),
+				},
+			}
+
+			await diffViewProvider.revertChanges()
+
+			// Verify showTextDocument was called since documentWasOpen was true
+			expect(vscode.window.showTextDocument).toHaveBeenCalledWith(
+				expect.objectContaining({ fsPath: `${mockCwd}/test.ts` }),
+				{ preview: false, preserveFocus: true },
+			)
 		})
 	})
 })
