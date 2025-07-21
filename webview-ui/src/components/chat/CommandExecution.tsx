@@ -16,7 +16,7 @@ import { CommandPatternSelector } from "./CommandPatternSelector"
 import {
 	extractCommandPatterns,
 	getPatternDescription,
-	parseCommandAndOutput as parseCommandAndOutputUtil,
+	parseCommandAndOutput,
 	CommandPattern,
 } from "../../utils/commandPatterns"
 
@@ -42,7 +42,7 @@ export const CommandExecution = ({ executionId, text, icon, title }: CommandExec
 		suggestions,
 	} = useMemo(() => {
 		// Use the enhanced parser from commandPatterns
-		return parseCommandAndOutputUtil(text || "")
+		return parseCommandAndOutput(text || "")
 	}, [text])
 
 	// If we aren't opening the VSCode terminal for this command then we default
@@ -64,7 +64,7 @@ export const CommandExecution = ({ executionId, text, icon, title }: CommandExec
 
 		// Use AI suggestions if available
 		if (suggestions.length > 0) {
-			suggestions.forEach((suggestion) => {
+			suggestions.forEach((suggestion: string) => {
 				patterns.push({
 					pattern: suggestion,
 					description: getPatternDescription(suggestion),

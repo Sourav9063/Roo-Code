@@ -463,5 +463,29 @@ Without any command prefix`
 			expect(codeBlock.textContent).toContain("Multiple lines of output")
 			expect(codeBlock.textContent).toContain("Without any command prefix")
 		})
+
+		it("should handle fallback case where parsed command equals original text", () => {
+			// This tests the case where parseCommandAndOutput returns command === text
+			// which happens when there's no output separator or command prefix
+			const plainCommand = "docker build ."
+
+			render(
+				<ExtensionStateWrapper>
+					<CommandExecution executionId="test-15" text={plainCommand} />
+				</ExtensionStateWrapper>,
+			)
+
+			// Should render the command
+			expect(screen.getByTestId("code-block")).toHaveTextContent("docker build .")
+
+			// Should show pattern selector with extracted patterns
+			expect(screen.getByTestId("command-pattern-selector")).toBeInTheDocument()
+			expect(screen.getByText("docker")).toBeInTheDocument()
+			expect(screen.getByText("docker build")).toBeInTheDocument()
+
+			// Verify no output is shown (since command === text means no output)
+			const codeBlocks = screen.getAllByTestId("code-block")
+			expect(codeBlocks).toHaveLength(1) // Only the command block, no output block
+		})
 	})
 })
