@@ -39,7 +39,7 @@
 	"codeIndex": {
 		"title": "程式碼庫索引",
 		"enableLabel": "啟用程式碼庫索引",
-		"enableDescription": "<0>程式碼庫索引</0>是一個實驗性功能，使用 AI 嵌入為您的專案建立語義搜尋索引。這使 Roo Code 能夠透過基於含義而非僅僅關鍵詞來尋找相關程式碼，從而更好地理解和導覽大型程式碼庫。",
+		"enableDescription": "啟用程式碼索引以改進搜尋和上下文理解",
 		"providerLabel": "嵌入提供者",
 		"selectProviderPlaceholder": "選擇提供者",
 		"openaiProvider": "OpenAI",
@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "API 金鑰：",
 		"geminiApiKeyPlaceholder": "輸入您的Gemini API金鑰",
+		"mistralProvider": "Mistral",
+		"mistralApiKeyLabel": "API 金鑰：",
+		"mistralApiKeyPlaceholder": "輸入您的 Mistral API 金鑰",
 		"openaiCompatibleProvider": "OpenAI 相容",
 		"openAiKeyLabel": "OpenAI API 金鑰",
 		"openAiKeyPlaceholder": "輸入您的 OpenAI API 金鑰",
@@ -109,6 +112,7 @@
 			"modelIdRequired": "需要模型 ID",
 			"modelDimensionRequired": "需要模型維度",
 			"geminiApiKeyRequired": "需要 Gemini API 金鑰",
+			"mistralApiKeyRequired": "需要 Mistral API 金鑰",
 			"ollamaBaseUrlRequired": "需要 Ollama 基礎 URL",
 			"baseUrlRequired": "需要基礎 URL",
 			"modelDimensionMinValue": "模型維度必須大於 0"
@@ -123,6 +127,8 @@
 	},
 	"autoApprove": {
 		"description": "允許 Roo 無需核准即執行操作。僅在您完全信任 AI 並了解相關安全風險時啟用這些設定。",
+		"toggleAriaLabel": "切換自動核准",
+		"disabledAriaLabel": "自動核准已停用 - 請先選取選項",
 		"readOnly": {
 			"label": "讀取",
 			"description": "啟用後，Roo 將自動檢視目錄內容並讀取檔案，無需點選核准按鈕。",
@@ -175,8 +181,12 @@
 			"description": "自動執行允許的終端機命令而無需核准",
 			"allowedCommands": "允許自動執行的命令",
 			"allowedCommandsDescription": "當「始終核准執行操作」啟用時可以自動執行的命令前綴。新增 * 以允許所有命令（請謹慎使用）。",
+			"deniedCommands": "拒絕的命令",
+			"deniedCommandsDescription": "將自動拒絕的命令前綴，無需使用者核准。與允許命令衝突時，最長前綴匹配優先。新增 * 拒絕所有命令。",
 			"commandPlaceholder": "輸入命令前綴（例如 'git '）",
-			"addButton": "新增"
+			"deniedCommandPlaceholder": "輸入要拒絕的命令前綴（例如 'rm -rf'）",
+			"addButton": "新增",
+			"autoDenied": "前綴為 `{{prefix}}` 的命令已被使用者禁止。不要透過執行其他命令來繞過此限制。"
 		},
 		"updateTodoList": {
 			"label": "待辦",
@@ -186,7 +196,8 @@
 			"title": "最大請求數",
 			"description": "在請求批准以繼續執行工作之前，自動發出此數量的 API 請求。",
 			"unlimited": "無限制"
-		}
+		},
+		"selectOptionsFirst": "請至少選擇以下一個選項以啟用自動核准"
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} 文件",
@@ -363,6 +374,12 @@
 			"label": "速率限制",
 			"description": "API 請求間的最短時間"
 		},
+		"consecutiveMistakeLimit": {
+			"label": "錯誤和重複限制",
+			"description": "在顯示「Roo 遇到問題」對話方塊前允許的連續錯誤或重複操作次數",
+			"unlimitedDescription": "已啟用無限重試（自動繼續）。對話方塊將永遠不會出現。",
+			"warning": "⚠️ 設定為 0 允許無限重試，這可能會消耗大量 API 使用量"
+		},
 		"reasoningEffort": {
 			"label": "模型推理強度",
 			"high": "高",
@@ -373,7 +390,9 @@
 		"claudeCode": {
 			"pathLabel": "Claude Code 路徑",
 			"description": "可選的 Claude Code CLI 路徑。如果未設定，則預設為 'claude'。",
-			"placeholder": "預設：claude"
+			"placeholder": "預設：claude",
+			"maxTokensLabel": "最大輸出 Token",
+			"maxTokensDescription": "Claude Code 回應的最大輸出 Token 數量。預設為 8000。"
 		}
 	},
 	"browser": {
@@ -502,6 +521,10 @@
 			"label": "終端機輸出行數限制",
 			"description": "執行命令時終端機輸出的最大行數。超過此限制時，會從中間移除多餘的行數，以節省 token 用量。 <0>瞭解更多</0>"
 		},
+		"outputCharacterLimit": {
+			"label": "終端機字元限制",
+			"description": "執行指令時在終端輸出中包含的最大字元數。此限制優先於行數限制，以防止因行過長而導致的記憶體問題。超過後，輸出將被截斷。 <0>了解更多</0>"
+		},
 		"shellIntegrationTimeout": {
 			"label": "終端機 Shell 整合逾時",
 			"description": "執行命令前等待 Shell 整合初始化的最長時間。如果您的 Shell 啟動較慢，且終端機出現「Shell 整合無法使用」的錯誤訊息，可能需要提高此數值。 <0>瞭解更多</0>"
@@ -542,6 +565,9 @@
 			"label": "繼承環境變數",
 			"description": "啟用後，終端機將從 VSCode 父程序繼承環境變數，如使用者設定檔中定義的 shell 整合設定。這直接切換 VSCode 全域設定 `terminal.integrated.inheritEnv`。 <0>瞭解更多</0>"
 		}
+	},
+	"advancedSettings": {
+		"title": "進階設定"
 	},
 	"advanced": {
 		"diff": {

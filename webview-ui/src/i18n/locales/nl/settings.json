@@ -39,7 +39,7 @@
 	"codeIndex": {
 		"title": "Codebase indexering",
 		"enableLabel": "Codebase indexering inschakelen",
-		"enableDescription": "<0>Codebase indexering</0> is een experimentele functie die een semantische zoekindex van je project creëert met behulp van AI-embeddings. Dit stelt Roo Code in staat om grote codebases beter te begrijpen en te navigeren door relevante code te vinden op basis van betekenis in plaats van alleen trefwoorden.",
+		"enableDescription": "Code-indexering inschakelen voor verbeterde zoekresultaten en contextbegrip",
 		"providerLabel": "Embeddings provider",
 		"selectProviderPlaceholder": "Selecteer provider",
 		"openaiProvider": "OpenAI",
@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "API-sleutel:",
 		"geminiApiKeyPlaceholder": "Voer uw Gemini API-sleutel in",
+		"mistralProvider": "Mistral",
+		"mistralApiKeyLabel": "API-sleutel:",
+		"mistralApiKeyPlaceholder": "Voer uw Mistral API-sleutel in",
 		"openaiCompatibleProvider": "OpenAI-compatibel",
 		"openAiKeyLabel": "OpenAI API-sleutel",
 		"openAiKeyPlaceholder": "Voer uw OpenAI API-sleutel in",
@@ -109,6 +112,7 @@
 			"modelIdRequired": "Model-ID is vereist",
 			"modelDimensionRequired": "Modelafmeting is vereist",
 			"geminiApiKeyRequired": "Gemini API-sleutel is vereist",
+			"mistralApiKeyRequired": "Mistral API-sleutel is vereist",
 			"ollamaBaseUrlRequired": "Ollama basis-URL is vereist",
 			"baseUrlRequired": "Basis-URL is vereist",
 			"modelDimensionMinValue": "Modelafmeting moet groter zijn dan 0"
@@ -123,6 +127,8 @@
 	},
 	"autoApprove": {
 		"description": "Sta Roo toe om automatisch handelingen uit te voeren zonder goedkeuring. Schakel deze instellingen alleen in als je de AI volledig vertrouwt en de bijbehorende beveiligingsrisico's begrijpt.",
+		"toggleAriaLabel": "Automatisch goedkeuren in-/uitschakelen",
+		"disabledAriaLabel": "Automatisch goedkeuren uitgeschakeld - selecteer eerst opties",
 		"readOnly": {
 			"label": "Lezen",
 			"description": "Indien ingeschakeld, bekijkt Roo automatisch de inhoud van mappen en leest bestanden zonder dat je op de Goedkeuren-knop hoeft te klikken.",
@@ -175,8 +181,12 @@
 			"description": "Automatisch toegestane terminalcommando's uitvoeren zonder goedkeuring",
 			"allowedCommands": "Toegestane automatisch uit te voeren commando's",
 			"allowedCommandsDescription": "Commando-prefixen die automatisch kunnen worden uitgevoerd als 'Altijd goedkeuren voor uitvoeren' is ingeschakeld. Voeg * toe om alle commando's toe te staan (gebruik met voorzichtigheid).",
+			"deniedCommands": "Geweigerde commando's",
+			"deniedCommandsDescription": "Commando-prefixen die automatisch worden geweigerd zonder om goedkeuring te vragen. Bij conflicten met toegestane commando's heeft de langste prefixovereenkomst voorrang. Voeg * toe om alle commando's te weigeren.",
 			"commandPlaceholder": "Voer commando-prefix in (bijv. 'git ')",
-			"addButton": "Toevoegen"
+			"deniedCommandPlaceholder": "Voer te weigeren commando-prefix in (bijv. 'rm -rf')",
+			"addButton": "Toevoegen",
+			"autoDenied": "Commando's met het prefix `{{prefix}}` zijn verboden door de gebruiker. Omzeil deze beperking niet door een ander commando uit te voeren."
 		},
 		"updateTodoList": {
 			"label": "Todo",
@@ -186,7 +196,8 @@
 			"title": "Maximale verzoeken",
 			"description": "Voer automatisch dit aantal API-verzoeken uit voordat om goedkeuring wordt gevraagd om door te gaan met de taak.",
 			"unlimited": "Onbeperkt"
-		}
+		},
+		"selectOptionsFirst": "Selecteer ten minste één optie hieronder om automatische goedkeuring in te schakelen"
 	},
 	"providers": {
 		"providerDocumentation": "{{provider}} documentatie",
@@ -363,6 +374,12 @@
 			"label": "Snelheidslimiet",
 			"description": "Minimale tijd tussen API-verzoeken."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "Fout- & Herhalingslimiet",
+			"description": "Aantal opeenvolgende fouten of herhaalde acties voordat het dialoogvenster 'Roo ondervindt problemen' wordt weergegeven",
+			"unlimitedDescription": "Onbeperkt aantal nieuwe pogingen ingeschakeld (automatisch doorgaan). Het dialoogvenster zal nooit verschijnen.",
+			"warning": "⚠️ Instellen op 0 staat onbeperkte nieuwe pogingen toe, wat aanzienlijk API-gebruik kan verbruiken"
+		},
 		"reasoningEffort": {
 			"label": "Model redeneervermogen",
 			"high": "Hoog",
@@ -373,7 +390,9 @@
 		"claudeCode": {
 			"pathLabel": "Claude Code Pad",
 			"description": "Optioneel pad naar uw Claude Code CLI. Standaard 'claude' als niet ingesteld.",
-			"placeholder": "Standaard: claude"
+			"placeholder": "Standaard: claude",
+			"maxTokensLabel": "Max Output Tokens",
+			"maxTokensDescription": "Maximaal aantal output-tokens voor Claude Code-reacties. Standaard is 8000."
 		}
 	},
 	"browser": {
@@ -502,6 +521,10 @@
 			"label": "Terminaluitvoerlimiet",
 			"description": "Maximaal aantal regels dat wordt opgenomen in de terminaluitvoer bij het uitvoeren van commando's. Overtollige regels worden uit het midden verwijderd om tokens te besparen. <0>Meer informatie</0>"
 		},
+		"outputCharacterLimit": {
+			"label": "Tekenlimiet terminal",
+			"description": "Maximaal aantal tekens dat moet worden opgenomen in de terminaluitvoer bij het uitvoeren van commando's. Deze limiet heeft voorrang op de regellimiet om geheugenproblemen door extreem lange regels te voorkomen. Bij overschrijding wordt de uitvoer afgekapt. <0>Meer informatie</0>"
+		},
 		"shellIntegrationTimeout": {
 			"label": "Terminal shell-integratie timeout",
 			"description": "Maximale wachttijd voor het initialiseren van shell-integratie voordat commando's worden uitgevoerd. Voor gebruikers met lange shell-opstarttijden moet deze waarde mogelijk worden verhoogd als je 'Shell Integration Unavailable'-fouten ziet in de terminal. <0>Meer informatie</0>"
@@ -542,6 +565,9 @@
 			"label": "Omgevingsvariabelen overnemen",
 			"description": "Indien ingeschakeld, neemt de terminal omgevingsvariabelen over van het bovenliggende VSCode-proces, zoals shell-integratie-instellingen uit het gebruikersprofiel. Dit schakelt direct de VSCode-instelling `terminal.integrated.inheritEnv` om. <0>Meer informatie</0>"
 		}
+	},
+	"advancedSettings": {
+		"title": "Geavanceerde instellingen"
 	},
 	"advanced": {
 		"diff": {

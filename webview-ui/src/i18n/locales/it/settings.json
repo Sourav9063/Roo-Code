@@ -39,7 +39,7 @@
 	"codeIndex": {
 		"title": "Indicizzazione del codice",
 		"enableLabel": "Abilita indicizzazione del codice",
-		"enableDescription": "<0>L'indicizzazione del codice</0> è una funzionalità sperimentale che crea un indice di ricerca semantica del tuo progetto utilizzando embedding AI. Questo permette a Roo Code di comprendere meglio e navigare grandi basi di codice trovando codice rilevante basato sul significato piuttosto che solo su parole chiave.",
+		"enableDescription": "Abilita l'indicizzazione del codice per una ricerca e una comprensione del contesto migliorate",
 		"providerLabel": "Fornitore di embedding",
 		"selectProviderPlaceholder": "Seleziona fornitore",
 		"openaiProvider": "OpenAI",
@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "Chiave API:",
 		"geminiApiKeyPlaceholder": "Inserisci la tua chiave API Gemini",
+		"mistralProvider": "Mistral",
+		"mistralApiKeyLabel": "Chiave API:",
+		"mistralApiKeyPlaceholder": "Inserisci la tua chiave API Mistral",
 		"openaiCompatibleProvider": "Compatibile con OpenAI",
 		"openAiKeyLabel": "Chiave API OpenAI",
 		"openAiKeyPlaceholder": "Inserisci la tua chiave API OpenAI",
@@ -109,6 +112,7 @@
 			"modelIdRequired": "È richiesto l'ID del modello",
 			"modelDimensionRequired": "È richiesta la dimensione del modello",
 			"geminiApiKeyRequired": "È richiesta la chiave API Gemini",
+			"mistralApiKeyRequired": "La chiave API di Mistral è richiesta",
 			"ollamaBaseUrlRequired": "È richiesto l'URL di base di Ollama",
 			"baseUrlRequired": "È richiesto l'URL di base",
 			"modelDimensionMinValue": "La dimensione del modello deve essere maggiore di 0"
@@ -123,6 +127,8 @@
 	},
 	"autoApprove": {
 		"description": "Permetti a Roo di eseguire automaticamente operazioni senza richiedere approvazione. Abilita queste impostazioni solo se ti fidi completamente dell'IA e comprendi i rischi di sicurezza associati.",
+		"toggleAriaLabel": "Attiva/disattiva approvazione automatica",
+		"disabledAriaLabel": "Approvazione automatica disabilitata - seleziona prima le opzioni",
 		"readOnly": {
 			"label": "Leggi",
 			"description": "Quando abilitato, Roo visualizzerà automaticamente i contenuti della directory e leggerà i file senza richiedere di cliccare sul pulsante Approva.",
@@ -175,8 +181,12 @@
 			"description": "Esegui automaticamente i comandi del terminale consentiti senza richiedere approvazione",
 			"allowedCommands": "Comandi di auto-esecuzione consentiti",
 			"allowedCommandsDescription": "Prefissi di comando che possono essere auto-eseguiti quando \"Approva sempre operazioni di esecuzione\" è abilitato. Aggiungi * per consentire tutti i comandi (usare con cautela).",
+			"deniedCommands": "Comandi negati",
+			"deniedCommandsDescription": "Prefissi di comandi che verranno automaticamente negati senza richiedere approvazione. In caso di conflitti con comandi consentiti, la corrispondenza del prefisso più lungo ha la precedenza. Aggiungi * per negare tutti i comandi.",
 			"commandPlaceholder": "Inserisci prefisso comando (es. 'git ')",
-			"addButton": "Aggiungi"
+			"deniedCommandPlaceholder": "Inserisci prefisso comando da negare (es. 'rm -rf')",
+			"addButton": "Aggiungi",
+			"autoDenied": "I comandi con il prefisso `{{prefix}}` sono stati vietati dall'utente. Non aggirare questa restrizione eseguendo un altro comando."
 		},
 		"updateTodoList": {
 			"label": "Todo",
@@ -186,7 +196,8 @@
 			"title": "Richieste massime",
 			"description": "Esegui automaticamente questo numero di richieste API prima di chiedere l'approvazione per continuare con l'attività.",
 			"unlimited": "Illimitato"
-		}
+		},
+		"selectOptionsFirst": "Seleziona almeno un'opzione qui sotto per abilitare l'approvazione automatica"
 	},
 	"providers": {
 		"providerDocumentation": "Documentazione {{provider}}",
@@ -363,6 +374,12 @@
 			"label": "Limite di frequenza",
 			"description": "Tempo minimo tra le richieste API."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "Limite di errori e ripetizioni",
+			"description": "Numero di errori consecutivi o azioni ripetute prima di mostrare la finestra di dialogo 'Roo sta riscontrando problemi'",
+			"unlimitedDescription": "Tentativi illimitati abilitati (procedi automaticamente). La finestra di dialogo non verrà mai visualizzata.",
+			"warning": "⚠️ L'impostazione a 0 consente tentativi illimitati che possono consumare un notevole utilizzo dell'API"
+		},
 		"reasoningEffort": {
 			"label": "Sforzo di ragionamento del modello",
 			"high": "Alto",
@@ -373,7 +390,9 @@
 		"claudeCode": {
 			"pathLabel": "Percorso Claude Code",
 			"description": "Percorso facoltativo per la tua CLI Claude Code. Predefinito 'claude' se non impostato.",
-			"placeholder": "Predefinito: claude"
+			"placeholder": "Predefinito: claude",
+			"maxTokensLabel": "Token di output massimi",
+			"maxTokensDescription": "Numero massimo di token di output per le risposte di Claude Code. Il valore predefinito è 8000."
 		}
 	},
 	"browser": {
@@ -502,6 +521,10 @@
 			"label": "Limite output terminale",
 			"description": "Numero massimo di righe da includere nell'output del terminale durante l'esecuzione dei comandi. Quando superato, le righe verranno rimosse dal centro, risparmiando token. <0>Scopri di più</0>"
 		},
+		"outputCharacterLimit": {
+			"label": "Limite di caratteri del terminale",
+			"description": "Numero massimo di caratteri da includere nell'output del terminale durante l'esecuzione dei comandi. Questo limite ha la precedenza sul limite di righe per prevenire problemi di memoria causati da righe estremamente lunghe. Se superato, l'output verrà troncato. <0>Scopri di più</0>"
+		},
 		"shellIntegrationTimeout": {
 			"label": "Timeout integrazione shell del terminale",
 			"description": "Tempo massimo di attesa per l'inizializzazione dell'integrazione della shell prima di eseguire i comandi. Per gli utenti con tempi di avvio della shell lunghi, questo valore potrebbe dover essere aumentato se si vedono errori \"Shell Integration Unavailable\" nel terminale. <0>Scopri di più</0>"
@@ -542,6 +565,9 @@
 			"label": "Eredita variabili d'ambiente",
 			"description": "Quando abilitato, il terminale eredita le variabili d'ambiente dal processo padre di VSCode, come le impostazioni di integrazione della shell definite nel profilo utente. Questo attiva direttamente l'impostazione globale di VSCode `terminal.integrated.inheritEnv`. <0>Scopri di più</0>"
 		}
+	},
+	"advancedSettings": {
+		"title": "Impostazioni avanzate"
 	},
 	"advanced": {
 		"diff": {

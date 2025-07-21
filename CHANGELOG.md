@@ -1,5 +1,87 @@
 # Roo Code Changelog
 
+## [3.23.16] - 2025-07-19
+
+- Add global rate limiting for OpenAI-compatible embeddings (thanks @daniel-lxs!)
+- Add batch limiting to code indexer (thanks @daniel-lxs!)
+- Fix Docker port conflicts for evals services
+
+## [3.23.15] - 2025-07-18
+
+- Fix configurable delay for diagnostics to prevent premature error reporting
+- Add command timeout allowlist
+- Add description and whenToUse fields to custom modes in .roomodes (thanks @RandalSchwartz!)
+- Fix Claude model detection by name for API protocol selection (thanks @daniel-lxs!)
+- Move marketplace icon from overflow menu to top navigation
+- Optional setting to prevent completion with open todos
+- Added YouTube to website footer (thanks @thill2323!)
+
+## [3.23.14] - 2025-07-17
+
+- Log api-initiated tasks to a tmp directory
+
+## [3.23.13] - 2025-07-17
+
+- Add the ability to "undo" enhance prompt changes
+- Fix a bug where the path component of the baseURL for the LiteLLM provider contains path in it (thanks @ChuKhaLi)
+- Add support for Vertex AI model name formatting when using Claude Code with Vertex AI (thanks @janaki-sasidhar)
+- The list-files tool must include at least the first-level directory contents (thanks @qdaxb)
+- Add a configurable limit that controls both consecutive errors and tool repetitions (thanks @MuriloFP)
+- Add `.terraform/` and `.terragrunt-cache/` directories to the checkpoint exclusion patterns (thanks @MuriloFP)
+- Increase Ollama API timeout values (thanks @daniel-lxs)
+- Fix an issue where you need to "discard changes" before saving even though there are no settings changes
+- Fix `DirectoryScanner` memory leak and improve file limit handling (thanks @daniel-lxs)
+- Fix time formatting in environment (thanks @chrarnoldus)
+- Prevent empty mode names from being saved (thanks @daniel-lxs)
+- Improve auto-approve checkbox UX
+- Improve the chat message edit / delete functionality (thanks @liwilliam2021)
+- Add `commandExecutionTimeout` to `GlobalSettings`
+
+## [3.23.12] - 2025-07-15
+
+- Update the max-token calculation in model-params to better support Kimi K2 and others
+
+## [3.23.11] - 2025-07-14
+
+- Add Kimi K2 model to Groq along with fixes to context condensing math
+- Add Cmd+Shift+. keyboard shortcut for previous mode switching
+
+## [3.23.10] - 2025-07-14
+
+- Prioritize built-in model dimensions over custom dimensions (thanks @daniel-lxs!)
+- Add padding to the index model options
+
+## [3.23.9] - 2025-07-14
+
+- Enable Claude Code provider to run natively on Windows (thanks @SannidhyaSah!)
+- Add gemini-embedding-001 model to code-index service (thanks @daniel-lxs!)
+- Resolve vector dimension mismatch error when switching embedding models
+- Return the cwd in the exec tool's response so that the model is not lost after subsequent calls (thanks @chris-garrett!)
+- Add configurable timeout for command execution in VS Code settings
+
+## [3.23.8] - 2025-07-13
+
+- Add enable/disable toggle for code indexing (thanks @daniel-lxs!)
+- Add a command auto-deny list to auto-approve settings
+- Add navigation link to history tab in HistoryPreview
+
+## [3.23.7] - 2025-07-11
+
+- Fix Mermaid syntax warning (thanks @MuriloFP!)
+- Expand Vertex AI region config to include all available regions in GCP Vertex AI (thanks @shubhamgupta731!)
+- Handle Qdrant vector dimension mismatch when switching embedding models (thanks @daniel-lxs!)
+- Fix typos in comment & document (thanks @noritaka1166!)
+- Improve the display of codebase search results
+- Correct translation fallback logic for embedding errors (thanks @daniel-lxs!)
+- Clean up MCP tool disabling
+- Link to marketplace from modes and MCP tab
+- Fix TTS button display (thanks @sensei-woo!)
+- Add Devstral Medium model support
+- Add comprehensive error telemetry to code-index service (thanks @daniel-lxs!)
+- Exclude cache tokens from context window calculation (thanks @daniel-lxs!)
+- Enable dynamic tool selection in architect mode for context discovery
+- Add configurable max output tokens setting for claude-code
+
 ## [3.23.6] - 2025-07-10
 
 - Grok 4

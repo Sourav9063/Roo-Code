@@ -39,7 +39,7 @@
 	"codeIndex": {
 		"title": "Lập chỉ mục mã nguồn",
 		"enableLabel": "Bật lập chỉ mục mã nguồn",
-		"enableDescription": "<0>Lập chỉ mục mã nguồn</0> là một tính năng thử nghiệm tạo ra chỉ mục tìm kiếm ngữ nghĩa cho dự án của bạn bằng cách sử dụng AI embeddings. Điều này cho phép Roo Code hiểu rõ hơn và điều hướng các codebase lớn bằng cách tìm mã liên quan dựa trên ý nghĩa thay vì chỉ từ khóa.",
+		"enableDescription": "Bật lập chỉ mục mã để cải thiện tìm kiếm và sự hiểu biết về ngữ cảnh",
 		"providerLabel": "Nhà cung cấp nhúng",
 		"selectProviderPlaceholder": "Chọn nhà cung cấp",
 		"openaiProvider": "OpenAI",
@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "Khóa API:",
 		"geminiApiKeyPlaceholder": "Nhập khóa API Gemini của bạn",
+		"mistralProvider": "Mistral",
+		"mistralApiKeyLabel": "Khóa API:",
+		"mistralApiKeyPlaceholder": "Nhập khóa API Mistral của bạn",
 		"openaiCompatibleProvider": "Tương thích OpenAI",
 		"openAiKeyLabel": "Khóa API OpenAI",
 		"openAiKeyPlaceholder": "Nhập khóa API OpenAI của bạn",
@@ -109,6 +112,7 @@
 			"modelIdRequired": "Yêu cầu ID mô hình",
 			"modelDimensionRequired": "Yêu cầu kích thước mô hình",
 			"geminiApiKeyRequired": "Yêu cầu khóa API Gemini",
+			"mistralApiKeyRequired": "Cần có khóa API của Mistral",
 			"ollamaBaseUrlRequired": "Yêu cầu URL cơ sở Ollama",
 			"baseUrlRequired": "Yêu cầu URL cơ sở",
 			"modelDimensionMinValue": "Kích thước mô hình phải lớn hơn 0"
@@ -123,6 +127,8 @@
 	},
 	"autoApprove": {
 		"description": "Cho phép Roo tự động thực hiện các hoạt động mà không cần phê duyệt. Chỉ bật những cài đặt này nếu bạn hoàn toàn tin tưởng AI và hiểu rõ các rủi ro bảo mật liên quan.",
+		"toggleAriaLabel": "Chuyển đổi tự động phê duyệt",
+		"disabledAriaLabel": "Tự động phê duyệt bị vô hiệu hóa - hãy chọn các tùy chọn trước",
 		"readOnly": {
 			"label": "Đọc",
 			"description": "Khi được bật, Roo sẽ tự động xem nội dung thư mục và đọc tệp mà không yêu cầu bạn nhấp vào nút Phê duyệt.",
@@ -175,8 +181,12 @@
 			"description": "Tự động thực thi các lệnh terminal được phép mà không cần phê duyệt",
 			"allowedCommands": "Các lệnh tự động thực thi được phép",
 			"allowedCommandsDescription": "Tiền tố lệnh có thể được tự động thực thi khi \"Luôn phê duyệt các hoạt động thực thi\" được bật. Thêm * để cho phép tất cả các lệnh (sử dụng cẩn thận).",
+			"deniedCommands": "Lệnh bị từ chối",
+			"deniedCommandsDescription": "Tiền tố lệnh sẽ được tự động từ chối mà không yêu cầu phê duyệt. Trong trường hợp xung đột với lệnh được phép, khớp tiền tố dài nhất sẽ được ưu tiên. Thêm * để từ chối tất cả lệnh.",
 			"commandPlaceholder": "Nhập tiền tố lệnh (ví dụ: 'git ')",
-			"addButton": "Thêm"
+			"deniedCommandPlaceholder": "Nhập tiền tố lệnh để từ chối (ví dụ: 'rm -rf')",
+			"addButton": "Thêm",
+			"autoDenied": "Các lệnh có tiền tố `{{prefix}}` đã bị người dùng cấm. Đừng vượt qua hạn chế này bằng cách chạy lệnh khác."
 		},
 		"updateTodoList": {
 			"label": "Todo",
@@ -186,7 +196,8 @@
 			"title": "Số lượng yêu cầu tối đa",
 			"description": "Tự động thực hiện số lượng API request này trước khi yêu cầu phê duyệt để tiếp tục với nhiệm vụ.",
 			"unlimited": "Không giới hạn"
-		}
+		},
+		"selectOptionsFirst": "Chọn ít nhất một tùy chọn bên dưới để bật tự động phê duyệt"
 	},
 	"providers": {
 		"providerDocumentation": "Tài liệu {{provider}}",
@@ -363,6 +374,12 @@
 			"label": "Giới hạn tốc độ",
 			"description": "Thời gian tối thiểu giữa các yêu cầu API."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "Giới hạn lỗi và lặp lại",
+			"description": "Số lỗi liên tiếp hoặc hành động lặp lại trước khi hiển thị hộp thoại 'Roo đang gặp sự cố'",
+			"unlimitedDescription": "Đã bật thử lại không giới hạn (tự động tiếp tục). Hộp thoại sẽ không bao giờ xuất hiện.",
+			"warning": "⚠️ Đặt thành 0 cho phép thử lại không giới hạn, điều này có thể tiêu tốn mức sử dụng API đáng kể"
+		},
 		"reasoningEffort": {
 			"label": "Nỗ lực suy luận của mô hình",
 			"high": "Cao",
@@ -373,7 +390,9 @@
 		"claudeCode": {
 			"pathLabel": "Đường dẫn Claude Code",
 			"description": "Đường dẫn tùy chọn đến Claude Code CLI của bạn. Mặc định là 'claude' nếu không được đặt.",
-			"placeholder": "Mặc định: claude"
+			"placeholder": "Mặc định: claude",
+			"maxTokensLabel": "Số token đầu ra tối đa",
+			"maxTokensDescription": "Số lượng token đầu ra tối đa cho các phản hồi của Claude Code. Mặc định là 8000."
 		}
 	},
 	"browser": {
@@ -502,6 +521,10 @@
 			"label": "Giới hạn đầu ra terminal",
 			"description": "Số dòng tối đa để đưa vào đầu ra terminal khi thực hiện lệnh. Khi vượt quá, các dòng sẽ bị xóa khỏi phần giữa, tiết kiệm token. <0>Tìm hiểu thêm</0>"
 		},
+		"outputCharacterLimit": {
+			"label": "Giới hạn ký tự của terminal",
+			"description": "Số ký tự tối đa để bao gồm trong đầu ra của terminal khi thực thi lệnh. Giới hạn này được ưu tiên hơn giới hạn dòng để ngăn chặn các vấn đề về bộ nhớ do các dòng quá dài. Khi vượt quá, đầu ra sẽ bị cắt bớt. <0>Tìm hiểu thêm</0>"
+		},
 		"shellIntegrationTimeout": {
 			"label": "Thời gian chờ tích hợp shell terminal",
 			"description": "Thời gian tối đa để chờ tích hợp shell khởi tạo trước khi thực hiện lệnh. Đối với người dùng có thời gian khởi động shell dài, giá trị này có thể cần được tăng lên nếu bạn thấy lỗi \"Shell Integration Unavailable\" trong terminal. <0>Tìm hiểu thêm</0>"
@@ -542,6 +565,9 @@
 			"label": "Kế thừa biến môi trường",
 			"description": "Khi được bật, terminal sẽ kế thừa các biến môi trường từ tiến trình cha của VSCode, như các cài đặt tích hợp shell được định nghĩa trong hồ sơ người dùng. Điều này trực tiếp chuyển đổi cài đặt toàn cục của VSCode `terminal.integrated.inheritEnv`. <0>Tìm hiểu thêm</0>"
 		}
+	},
+	"advancedSettings": {
+		"title": "Cài đặt nâng cao"
 	},
 	"advanced": {
 		"diff": {

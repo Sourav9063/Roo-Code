@@ -10,6 +10,7 @@ import { getDefaultModelId, getModelDimension, getModelScoreThreshold } from "..
  * Handles loading, validating, and providing access to configuration values.
  */
 export class CodeIndexConfigManager {
+	private codebaseIndexEnabled: boolean = true
 	private embedderProvider: EmbedderProvider = "openai"
 	private modelId?: string
 	private modelDimension?: number
@@ -17,6 +18,7 @@ export class CodeIndexConfigManager {
 	private ollamaOptions?: ApiHandlerOptions
 	private openAiCompatibleOptions?: { baseUrl: string; apiKey: string }
 	private geminiOptions?: { apiKey: string }
+	private mistralOptions?: { apiKey: string }
 	private qdrantUrl?: string = "http://localhost:6333"
 	private qdrantApiKey?: string
 	private searchMinScore?: number
@@ -66,9 +68,10 @@ export class CodeIndexConfigManager {
 		const openAiCompatibleBaseUrl = codebaseIndexConfig.codebaseIndexOpenAiCompatibleBaseUrl ?? ""
 		const openAiCompatibleApiKey = this.contextProxy?.getSecret("codebaseIndexOpenAiCompatibleApiKey") ?? ""
 		const geminiApiKey = this.contextProxy?.getSecret("codebaseIndexGeminiApiKey") ?? ""
+		const mistralApiKey = this.contextProxy?.getSecret("codebaseIndexMistralApiKey") ?? ""
 
 		// Update instance variables with configuration
-		// Note: codebaseIndexEnabled is no longer used as the feature is always enabled
+		this.codebaseIndexEnabled = codebaseIndexEnabled ?? true
 		this.qdrantUrl = codebaseIndexQdrantUrl
 		this.qdrantApiKey = qdrantApiKey ?? ""
 		this.searchMinScore = codebaseIndexSearchMinScore
@@ -99,6 +102,8 @@ export class CodeIndexConfigManager {
 			this.embedderProvider = "openai-compatible"
 		} else if (codebaseIndexEmbedderProvider === "gemini") {
 			this.embedderProvider = "gemini"
+		} else if (codebaseIndexEmbedderProvider === "mistral") {
+			this.embedderProvider = "mistral"
 		} else {
 			this.embedderProvider = "openai"
 		}
@@ -118,6 +123,7 @@ export class CodeIndexConfigManager {
 				: undefined
 
 		this.geminiOptions = geminiApiKey ? { apiKey: geminiApiKey } : undefined
+		this.mistralOptions = mistralApiKey ? { apiKey: mistralApiKey } : undefined
 	}
 
 	/**
@@ -134,6 +140,7 @@ export class CodeIndexConfigManager {
 			ollamaOptions?: ApiHandlerOptions
 			openAiCompatibleOptions?: { baseUrl: string; apiKey: string }
 			geminiOptions?: { apiKey: string }
+			mistralOptions?: { apiKey: string }
 			qdrantUrl?: string
 			qdrantApiKey?: string
 			searchMinScore?: number
@@ -142,7 +149,7 @@ export class CodeIndexConfigManager {
 	}> {
 		// Capture the ACTUAL previous state before loading new configuration
 		const previousConfigSnapshot: PreviousConfigSnapshot = {
-			enabled: true, // Feature is always enabled
+			enabled: this.codebaseIndexEnabled,
 			configured: this.isConfigured(),
 			embedderProvider: this.embedderProvider,
 			modelId: this.modelId,
@@ -152,6 +159,7 @@ export class CodeIndexConfigManager {
 			openAiCompatibleBaseUrl: this.openAiCompatibleOptions?.baseUrl ?? "",
 			openAiCompatibleApiKey: this.openAiCompatibleOptions?.apiKey ?? "",
 			geminiApiKey: this.geminiOptions?.apiKey ?? "",
+			mistralApiKey: this.mistralOptions?.apiKey ?? "",
 			qdrantUrl: this.qdrantUrl ?? "",
 			qdrantApiKey: this.qdrantApiKey ?? "",
 		}
@@ -175,6 +183,7 @@ export class CodeIndexConfigManager {
 				ollamaOptions: this.ollamaOptions,
 				openAiCompatibleOptions: this.openAiCompatibleOptions,
 				geminiOptions: this.geminiOptions,
+				mistralOptions: this.mistralOptions,
 				qdrantUrl: this.qdrantUrl,
 				qdrantApiKey: this.qdrantApiKey,
 				searchMinScore: this.currentSearchMinScore,
@@ -204,6 +213,11 @@ export class CodeIndexConfigManager {
 			return isConfigured
 		} else if (this.embedderProvider === "gemini") {
 			const apiKey = this.geminiOptions?.apiKey
+			const qdrantUrl = this.qdrantUrl
+			const isConfigured = !!(apiKey && qdrantUrl)
+			return isConfigured
+		} else if (this.embedderProvider === "mistral") {
+			const apiKey = this.mistralOptions?.apiKey
 			const qdrantUrl = this.qdrantUrl
 			const isConfigured = !!(apiKey && qdrantUrl)
 			return isConfigured
@@ -240,22 +254,30 @@ export class CodeIndexConfigManager {
 		const prevOpenAiCompatibleApiKey = prev?.openAiCompatibleApiKey ?? ""
 		const prevModelDimension = prev?.modelDimension
 		const prevGeminiApiKey = prev?.geminiApiKey ?? ""
+		const prevMistralApiKey = prev?.mistralApiKey ?? ""
 		const prevQdrantUrl = prev?.qdrantUrl ?? ""
 		const prevQdrantApiKey = prev?.qdrantApiKey ?? ""
 
-		// 1. Transition from unconfigured to configured
-		// Since the feature is always enabled, we only check configuration status
-		if (!prevConfigured && nowConfigured) {
+		// 1. Transition from disabled/unconfigured to enabled/configured
+		if ((!prevEnabled || !prevConfigured) && this.codebaseIndexEnabled && nowConfigured) {
+			return true
+		}
+
+		// 2. Transition from enabled to disabled
+		if (prevEnabled && !this.codebaseIndexEnabled) {
 			return true
 		}
 
 		// 3. If wasn't ready before and isn't ready now, no restart needed
-		if (!prevConfigured && !nowConfigured) {
+		if ((!prevEnabled || !prevConfigured) && (!this.codebaseIndexEnabled || !nowConfigured)) {
 			return false
 		}
 
 		// 4. CRITICAL CHANGES - Always restart for these
-		// Since feature is always enabled, we always check for critical changes
+		// Only check for critical changes if feature is enabled
+		if (!this.codebaseIndexEnabled) {
+			return false
+		}
 
 		// Provider change
 		if (prevProvider !== this.embedderProvider) {
@@ -269,6 +291,7 @@ export class CodeIndexConfigManager {
 		const currentOpenAiCompatibleApiKey = this.openAiCompatibleOptions?.apiKey ?? ""
 		const currentModelDimension = this.modelDimension
 		const currentGeminiApiKey = this.geminiOptions?.apiKey ?? ""
+		const currentMistralApiKey = this.mistralOptions?.apiKey ?? ""
 		const currentQdrantUrl = this.qdrantUrl ?? ""
 		const currentQdrantApiKey = this.qdrantApiKey ?? ""
 
@@ -284,6 +307,14 @@ export class CodeIndexConfigManager {
 			prevOpenAiCompatibleBaseUrl !== currentOpenAiCompatibleBaseUrl ||
 			prevOpenAiCompatibleApiKey !== currentOpenAiCompatibleApiKey
 		) {
+			return true
+		}
+
+		if (prevGeminiApiKey !== currentGeminiApiKey) {
+			return true
+		}
+
+		if (prevMistralApiKey !== currentMistralApiKey) {
 			return true
 		}
 
@@ -343,6 +374,7 @@ export class CodeIndexConfigManager {
 			ollamaOptions: this.ollamaOptions,
 			openAiCompatibleOptions: this.openAiCompatibleOptions,
 			geminiOptions: this.geminiOptions,
+			mistralOptions: this.mistralOptions,
 			qdrantUrl: this.qdrantUrl,
 			qdrantApiKey: this.qdrantApiKey,
 			searchMinScore: this.currentSearchMinScore,
@@ -354,7 +386,7 @@ export class CodeIndexConfigManager {
 	 * Gets whether the code indexing feature is enabled
 	 */
 	public get isFeatureEnabled(): boolean {
-		return true
+		return this.codebaseIndexEnabled
 	}
 
 	/**
@@ -390,10 +422,19 @@ export class CodeIndexConfigManager {
 
 	/**
 	 * Gets the current model dimension being used for embeddings.
-	 * Returns the explicitly configured dimension or undefined if not set.
+	 * Returns the model's built-in dimension if available, otherwise falls back to custom dimension.
 	 */
 	public get currentModelDimension(): number | undefined {
-		return this.modelDimension
+		// First try to get the model-specific dimension
+		const modelId = this.modelId ?? getDefaultModelId(this.embedderProvider)
+		const modelDimension = getModelDimension(this.embedderProvider, modelId)
+
+		// Only use custom dimension if model doesn't have a built-in dimension
+		if (!modelDimension && this.modelDimension && this.modelDimension > 0) {
+			return this.modelDimension
+		}
+
+		return modelDimension
 	}
 
 	/**

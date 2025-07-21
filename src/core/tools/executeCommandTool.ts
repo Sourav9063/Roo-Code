@@ -1,9 +1,10 @@
 import fs from "fs/promises"
 import * as path from "path"
+import * as vscode from "vscode"
 
 import delay from "delay"
 
-import { CommandExecutionStatus } from "@roo-code/types"
+import { CommandExecutionStatus, DEFAULT_TERMINAL_OUTPUT_CHARACTER_LIMIT } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 
 import { Task } from "../task/Task"
@@ -14,6 +15,8 @@ import { unescapeHtmlEntities } from "../../utils/text-normalization"
 import { ExitCodeDetails, RooTerminalCallbacks, RooTerminalProcess } from "../../integrations/terminal/types"
 import { TerminalRegistry } from "../../integrations/terminal/TerminalRegistry"
 import { Terminal } from "../../integrations/terminal/Terminal"
+import { Package } from "../../shared/package"
+import { t } from "../../i18n"
 
 class ShellIntegrationError extends Error {}
 
@@ -60,7 +63,27 @@ export async function executeCommandTool(
 			const executionId = cline.lastMessageTs?.toString() ?? Date.now().toString()
 			const clineProvider = await cline.providerRef.deref()
 			const clineProviderState = await clineProvider?.getState()
-			const { terminalOutputLineLimit = 500, terminalShellIntegrationDisabled = false } = clineProviderState ?? {}
+			const {
+				terminalOutputLineLimit = 500,
+				terminalOutputCharacterLimit = DEFAULT_TERMINAL_OUTPUT_CHARACTER_LIMIT,
+				terminalShellIntegrationDisabled = false,
+			} = clineProviderState ?? {}
+
+			// Get command execution timeout from VSCode configuration (in seconds)
+			const commandExecutionTimeoutSeconds = vscode.workspace
+				.getConfiguration(Package.name)
+				.get<number>("commandExecutionTimeout", 0)
+
+			// Get command timeout allowlist from VSCode configuration
+			const commandTimeoutAllowlist = vscode.workspace
+				.getConfiguration(Package.name)
+				.get<string[]>("commandTimeoutAllowlist", [])
+
+			// Check if command matches any prefix in the allowlist
+			const isCommandAllowlisted = commandTimeoutAllowlist.some((prefix) => command!.startsWith(prefix.trim()))
+
+			// Convert seconds to milliseconds for internal use, but skip timeout if command is allowlisted
+			const commandExecutionTimeout = isCommandAllowlisted ? 0 : commandExecutionTimeoutSeconds * 1000
 
 			const options: ExecuteCommandOptions = {
 				executionId,
@@ -68,6 +91,8 @@ export async function executeCommandTool(
 				customCwd,
 				terminalShellIntegrationDisabled,
 				terminalOutputLineLimit,
+				terminalOutputCharacterLimit,
+				commandExecutionTimeout,
 			}
 
 			try {
@@ -113,6 +138,8 @@ export type ExecuteCommandOptions = {
 	customCwd?: string
 	terminalShellIntegrationDisabled?: boolean
 	terminalOutputLineLimit?: number
+	terminalOutputCharacterLimit?: number
+	commandExecutionTimeout?: number
 }
 
 export async function executeCommand(
@@ -123,8 +150,12 @@ export async function executeCommand(
 		customCwd,
 		terminalShellIntegrationDisabled = false,
 		terminalOutputLineLimit = 500,
+		terminalOutputCharacterLimit = DEFAULT_TERMINAL_OUTPUT_CHARACTER_LIMIT,
+		commandExecutionTimeout = 0,
 	}: ExecuteCommandOptions,
 ): Promise<[boolean, ToolResponse]> {
+	// Convert milliseconds back to seconds for display purposes
+	const commandExecutionTimeoutSeconds = commandExecutionTimeout / 1000
 	let workingDir: string
 
 	if (!customCwd) {
@@ -155,7 +186,11 @@ export async function executeCommand(
 	const callbacks: RooTerminalCallbacks = {
 		onLine: async (lines: string, process: RooTerminalProcess) => {
 			accumulatedOutput += lines
-			const compressedOutput = Terminal.compressTerminalOutput(accumulatedOutput, terminalOutputLineLimit)
+			const compressedOutput = Terminal.compressTerminalOutput(
+				accumulatedOutput,
+				terminalOutputLineLimit,
+				terminalOutputCharacterLimit,
+			)
 			const status: CommandExecutionStatus = { executionId, status: "output", output: compressedOutput }
 			clineProvider?.postMessageToWebview({ type: "commandExecutionStatus", text: JSON.stringify(status) })
 
@@ -174,7 +209,11 @@ export async function executeCommand(
 			} catch (_error) {}
 		},
 		onCompleted: (output: string | undefined) => {
-			result = Terminal.compressTerminalOutput(output ?? "", terminalOutputLineLimit)
+			result = Terminal.compressTerminalOutput(
+				output ?? "",
+				terminalOutputLineLimit,
+				terminalOutputCharacterLimit,
+			)
 			cline.say("command_output", result)
 			completed = true
 		},
@@ -211,8 +250,58 @@ export async function executeCommand(
 	const process = terminal.runCommand(command, callbacks)
 	cline.terminalProcess = process
 
-	await process
-	cline.terminalProcess = undefined
+	// Implement command execution timeout (skip if timeout is 0)
+	if (commandExecutionTimeout > 0) {
+		let timeoutId: NodeJS.Timeout | undefined
+		let isTimedOut = false
+
+		const timeoutPromise = new Promise<void>((_, reject) => {
+			timeoutId = setTimeout(() => {
+				isTimedOut = true
+				// Try to abort the process
+				if (cline.terminalProcess) {
+					cline.terminalProcess.abort()
+				}
+				reject(new Error(`Command execution timed out after ${commandExecutionTimeout}ms`))
+			}, commandExecutionTimeout)
+		})
+
+		try {
+			await Promise.race([process, timeoutPromise])
+		} catch (error) {
+			if (isTimedOut) {
+				// Handle timeout case
+				const status: CommandExecutionStatus = { executionId, status: "timeout" }
+				clineProvider?.postMessageToWebview({ type: "commandExecutionStatus", text: JSON.stringify(status) })
+
+				// Add visual feedback for timeout
+				await cline.say(
+					"error",
+					t("common:errors:command_timeout", { seconds: commandExecutionTimeoutSeconds }),
+				)
+
+				cline.terminalProcess = undefined
+
+				return [
+					false,
+					`The command was terminated after exceeding a user-configured ${commandExecutionTimeoutSeconds}s timeout. Do not try to re-run the command.`,
+				]
+			}
+			throw error
+		} finally {
+			if (timeoutId) {
+				clearTimeout(timeoutId)
+			}
+			cline.terminalProcess = undefined
+		}
+	} else {
+		// No timeout - just wait for the process to complete
+		try {
+			await process
+		} finally {
+			cline.terminalProcess = undefined
+		}
+	}
 
 	if (shellIntegrationError) {
 		throw new ShellIntegrationError(shellIntegrationError)
@@ -266,8 +355,7 @@ export async function executeCommand(
 			exitStatus = `Exit code: <undefined, notify user>`
 		}
 
-		let workingDirInfo = ` within working directory '${workingDir.toPosix()}'`
-		const newWorkingDir = terminal.getCurrentWorkingDirectory()
+		let workingDirInfo = ` within working directory '${terminal.getCurrentWorkingDirectory().toPosix()}'`
 
 		return [false, `Command executed in terminal ${workingDirInfo}. ${exitStatus}\nOutput:\n${result}`]
 	} else {

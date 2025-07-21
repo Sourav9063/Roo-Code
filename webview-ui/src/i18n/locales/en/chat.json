@@ -39,7 +39,7 @@
 	},
 	"save": {
 		"title": "Save",
-		"tooltip": "Save the file changes"
+		"tooltip": "Save the message changes"
 	},
 	"tokenProgress": {
 		"availableSpace": "Available space: {{amount}} tokens",
@@ -87,6 +87,9 @@
 		"title": "Cancel",
 		"tooltip": "Cancel the current operation"
 	},
+	"editMessage": {
+		"placeholder": "Edit your message..."
+	},
 	"scrollToBottom": "Scroll to bottom of chat",
 	"about": "Generate, refactor, and debug code with AI assistance. Check out our <DocsLink>documentation</DocsLink> to learn more.",
 	"onboarding": "Your task list in this workspace is empty.",
@@ -131,6 +134,7 @@
 	"separator": "Separator",
 	"edit": "Edit...",
 	"forNextMode": "for next mode",
+	"forPreviousMode": "for previous mode",
 	"apiRequest": {
 		"title": "API Request",
 		"failed": "API Request Failed",
@@ -243,7 +247,10 @@
 	"autoApprove": {
 		"title": "Auto-approve:",
 		"none": "None",
-		"description": "Auto-approve allows Roo Code to perform actions without asking for permission. Only enable for actions you fully trust. More detailed configuration available in <settingsLink>Settings</settingsLink>."
+		"description": "Auto-approve allows Roo Code to perform actions without asking for permission. Only enable for actions you fully trust. More detailed configuration available in <settingsLink>Settings</settingsLink>.",
+		"selectOptionsFirst": "Select at least one option below to enable auto-approval",
+		"toggleAriaLabel": "Toggle auto-approval",
+		"disabledAriaLabel": "Auto-approval disabled - select options first"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Released",

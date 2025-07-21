@@ -39,7 +39,7 @@
 	"codeIndex": {
 		"title": "Indexação de Código",
 		"enableLabel": "Ativar Indexação de Código",
-		"enableDescription": "<0>Indexação de Código</0> é um recurso experimental que cria um índice de busca semântica do seu projeto usando embeddings de IA. Isso permite ao Roo Code entender melhor e navegar grandes bases de código encontrando código relevante baseado em significado ao invés de apenas palavras-chave.",
+		"enableDescription": "Ative a indexação de código para pesquisa e compreensão de contexto aprimoradas",
 		"providerLabel": "Provedor de Embeddings",
 		"selectProviderPlaceholder": "Selecionar provedor",
 		"openaiProvider": "OpenAI",
@@ -47,6 +47,9 @@
 		"geminiProvider": "Gemini",
 		"geminiApiKeyLabel": "Chave de API:",
 		"geminiApiKeyPlaceholder": "Digite sua chave de API do Gemini",
+		"mistralProvider": "Mistral",
+		"mistralApiKeyLabel": "Chave de API:",
+		"mistralApiKeyPlaceholder": "Digite sua chave de API da Mistral",
 		"openaiCompatibleProvider": "Compatível com OpenAI",
 		"openAiKeyLabel": "Chave de API OpenAI",
 		"openAiKeyPlaceholder": "Digite sua chave de API OpenAI",
@@ -109,6 +112,7 @@
 			"modelIdRequired": "O ID do modelo é obrigatório",
 			"modelDimensionRequired": "A dimensão do modelo é obrigatória",
 			"geminiApiKeyRequired": "A chave de API do Gemini é obrigatória",
+			"mistralApiKeyRequired": "A chave de API Mistral é obrigatória",
 			"ollamaBaseUrlRequired": "A URL base do Ollama é obrigatória",
 			"baseUrlRequired": "A URL base é obrigatória",
 			"modelDimensionMinValue": "A dimensão do modelo deve ser maior que 0"
@@ -123,6 +127,8 @@
 	},
 	"autoApprove": {
 		"description": "Permitir que o Roo realize operações automaticamente sem exigir aprovação. Ative essas configurações apenas se confiar totalmente na IA e compreender os riscos de segurança associados.",
+		"toggleAriaLabel": "Alternar aprovação automática",
+		"disabledAriaLabel": "Aprovação automática desativada - selecione as opções primeiro",
 		"readOnly": {
 			"label": "Leitura",
 			"description": "Quando ativado, o Roo visualizará automaticamente o conteúdo do diretório e lerá arquivos sem que você precise clicar no botão Aprovar.",
@@ -175,8 +181,12 @@
 			"description": "Executar automaticamente comandos de terminal permitidos sem exigir aprovação",
 			"allowedCommands": "Comandos de auto-execução permitidos",
 			"allowedCommandsDescription": "Prefixos de comando que podem ser auto-executados quando \"Aprovar sempre operações de execução\" está ativado. Adicione * para permitir todos os comandos (use com cautela).",
+			"deniedCommands": "Comandos negados",
+			"deniedCommandsDescription": "Prefixos de comandos que serão automaticamente negados sem pedir aprovação. Em caso de conflitos com comandos permitidos, a correspondência de prefixo mais longa tem precedência. Adicione * para negar todos os comandos.",
 			"commandPlaceholder": "Digite o prefixo do comando (ex. 'git ')",
-			"addButton": "Adicionar"
+			"deniedCommandPlaceholder": "Digite o prefixo do comando para negar (ex. 'rm -rf')",
+			"addButton": "Adicionar",
+			"autoDenied": "Comandos com o prefixo `{{prefix}}` foram proibidos pelo usuário. Não contorne esta restrição executando outro comando."
 		},
 		"updateTodoList": {
 			"label": "Todo",
@@ -186,7 +196,8 @@
 			"title": "Máximo de Solicitações",
 			"description": "Fazer automaticamente este número de requisições à API antes de pedir aprovação para continuar com a tarefa.",
 			"unlimited": "Ilimitado"
-		}
+		},
+		"selectOptionsFirst": "Selecione pelo menos uma opção abaixo para habilitar a aprovação automática"
 	},
 	"providers": {
 		"providerDocumentation": "Documentação do {{provider}}",
@@ -363,6 +374,12 @@
 			"label": "Limite de taxa",
 			"description": "Tempo mínimo entre requisições de API."
 		},
+		"consecutiveMistakeLimit": {
+			"label": "Limite de Erros e Repetições",
+			"description": "Número de erros consecutivos ou ações repetidas antes de exibir o diálogo 'Roo está com problemas'",
+			"unlimitedDescription": "Tentativas ilimitadas ativadas (prosseguimento automático). O diálogo nunca aparecerá.",
+			"warning": "⚠️ Definir como 0 permite tentativas ilimitadas, o que pode consumir um uso significativo da API"
+		},
 		"reasoningEffort": {
 			"label": "Esforço de raciocínio do modelo",
 			"high": "Alto",
@@ -373,7 +390,9 @@
 		"claudeCode": {
 			"pathLabel": "Caminho do Claude Code",
 			"description": "Caminho opcional para o seu Claude Code CLI. O padrão é 'claude' se não for definido.",
-			"placeholder": "Padrão: claude"
+			"placeholder": "Padrão: claude",
+			"maxTokensLabel": "Tokens de saída máximos",
+			"maxTokensDescription": "Número máximo de tokens de saída para respostas do Claude Code. O padrão é 8000."
 		}
 	},
 	"browser": {
@@ -502,6 +521,10 @@
 			"label": "Limite de saída do terminal",
 			"description": "Número máximo de linhas a incluir na saída do terminal ao executar comandos. Quando excedido, as linhas serão removidas do meio, economizando token. <0>Saiba mais</0>"
 		},
+		"outputCharacterLimit": {
+			"label": "Limite de caracteres do terminal",
+			"description": "Número máximo de caracteres a serem incluídos na saída do terminal ao executar comandos. Este limite tem precedência sobre o limite de linhas para evitar problemas de memória com linhas extremamente longas. Quando excedido, a saída será truncada. <0>Saiba mais</0>"
+		},
 		"shellIntegrationTimeout": {
 			"label": "Tempo limite de integração do shell do terminal",
 			"description": "Tempo máximo de espera para a inicialização da integração do shell antes de executar comandos. Para usuários com tempos de inicialização de shell longos, este valor pode precisar ser aumentado se você vir erros \"Shell Integration Unavailable\" no terminal. <0>Saiba mais</0>"
@@ -542,6 +565,9 @@
 			"label": "Herdar variáveis de ambiente",
 			"description": "Quando ativado, o terminal herda variáveis de ambiente do processo pai do VSCode, como configurações de integração do shell definidas no perfil do usuário. Isso alterna diretamente a configuração global do VSCode `terminal.integrated.inheritEnv`. <0>Saiba mais</0>"
 		}
+	},
+	"advancedSettings": {
+		"title": "Configurações avançadas"
 	},
 	"advanced": {
 		"diff": {
