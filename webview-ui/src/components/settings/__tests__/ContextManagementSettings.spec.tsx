@@ -24,6 +24,14 @@ vi.mock("@/components/ui", () => ({
 			type="range"
 			value={value?.[0] ?? 0}
 			onChange={(e) => onValueChange([parseFloat(e.target.value)])}
+			onKeyDown={(e) => {
+				const currentValue = value?.[0] ?? 0
+				if (e.key === "ArrowRight") {
+					onValueChange([currentValue + 1])
+				} else if (e.key === "ArrowLeft") {
+					onValueChange([currentValue - 1])
+				}
+			}}
 			data-testid={dataTestId}
 			disabled={disabled}
 			role="slider"
@@ -37,7 +45,11 @@ vi.mock("@/components/ui", () => ({
 			{children}
 		</button>
 	),
-	Select: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+	Select: ({ children, ...props }: any) => (
+		<div role="combobox" {...props}>
+			{children}
+		</div>
+	),
 	SelectTrigger: ({ children, ...props }: any) => <div {...props}>{children}</div>,
 	SelectValue: ({ children, ...props }: any) => <div {...props}>{children}</div>,
 	SelectContent: ({ children, ...props }: any) => <div {...props}>{children}</div>,
@@ -384,7 +396,8 @@ describe("ContextManagementSettings", () => {
 			render(<ContextManagementSettings {...props} />)
 
 			const checkbox = screen.getByTestId("auto-condense-context-checkbox")
-			expect(checkbox).toBeChecked()
+			const input = checkbox.querySelector('input[type="checkbox"]')
+			expect(input).toBeChecked()
 
 			// Toggle off
 			fireEvent.click(checkbox)
@@ -429,7 +442,8 @@ describe("ContextManagementSettings", () => {
 		render(<ContextManagementSettings {...propsWithMaxReadFileLine} />)
 
 		const checkbox = screen.getByTestId("max-read-file-always-full-checkbox")
-		expect(checkbox).toBeChecked()
+		const input = checkbox.querySelector('input[type="checkbox"]')
+		expect(input).toBeChecked()
 	})
 
 	it("handles boundary values for sliders", () => {
