@@ -61,7 +61,7 @@ describe("getApiMetrics", () => {
 			expect(result.totalCacheWrites).toBe(5)
 			expect(result.totalCacheReads).toBe(10)
 			expect(result.totalCost).toBe(0.005)
-			expect(result.contextTokens).toBe(300) // 100 + 200 (OpenAI default, no cache tokens)
+			expect(result.contextTokens).toBe(300) // 100 + 200 (cumulative tokens)
 		})
 
 		it("should calculate metrics from multiple api_req_started messages", () => {
@@ -83,7 +83,7 @@ describe("getApiMetrics", () => {
 			expect(result.totalCacheWrites).toBe(8) // 5 + 3
 			expect(result.totalCacheReads).toBe(17) // 10 + 7
 			expect(result.totalCost).toBe(0.008) // 0.005 + 0.003
-			expect(result.contextTokens).toBe(200) // 50 + 150 (OpenAI default, no cache tokens)
+			expect(result.contextTokens).toBe(500) // (100 + 200) + (50 + 150) - cumulative
 		})
 
 		it("should calculate metrics from condense_context messages", () => {
@@ -123,7 +123,7 @@ describe("getApiMetrics", () => {
 			expect(result.totalCacheWrites).toBe(8) // 5 + 3
 			expect(result.totalCacheReads).toBe(17) // 10 + 7
 			expect(result.totalCost).toBe(0.01) // 0.005 + 0.002 + 0.003
-			expect(result.contextTokens).toBe(200) // 50 + 150 (OpenAI default, no cache tokens)
+			expect(result.contextTokens).toBe(700) // 500 (from condense) + 50 + 150
 		})
 	})
 
@@ -242,9 +242,8 @@ describe("getApiMetrics", () => {
 			expect(result.totalCacheReads).toBe(10)
 			expect(result.totalCost).toBe(0.005)
 
-			// The implementation will use the last message that has any tokens
-			// In this case, it's the message with tokensOut:200 (since the last few messages have no tokensIn/Out)
-			expect(result.contextTokens).toBe(200) // 0 + 200 (from the tokensOut message)
+			// The cumulative context should be the sum of all tokens
+			expect(result.contextTokens).toBe(300) // 100 + 0 + 0 + 0 + 200 (cumulative)
 		})
 
 		it("should handle non-number values in api_req_started message", () => {
@@ -264,13 +263,13 @@ describe("getApiMetrics", () => {
 			expect(result.totalCacheReads).toBeUndefined()
 			expect(result.totalCost).toBe(0)
 
-			// The implementation concatenates all token values including cache tokens
-			expect(result.contextTokens).toBe("not-a-numbernot-a-number") // tokensIn + tokensOut (OpenAI default)
+			// Non-number values should result in 0 context tokens
+			expect(result.contextTokens).toBe(0)
 		})
 	})
 
 	describe("Context tokens calculation", () => {
-		it("should calculate contextTokens from the last api_req_started message", () => {
+		it("should calculate cumulative contextTokens from all api_req_started messages", () => {
 			const messages: ClineMessage[] = [
 				createApiReqStartedMessage('{"tokensIn":100,"tokensOut":200,"cacheWrites":5,"cacheReads":10}', 1000),
 				createApiReqStartedMessage('{"tokensIn":50,"tokensOut":150,"cacheWrites":3,"cacheReads":7}', 2000),
@@ -278,11 +277,11 @@ describe("getApiMetrics", () => {
 
 			const result = getApiMetrics(messages)
 
-			// Should use the values from the last api_req_started message
-			expect(result.contextTokens).toBe(200) // 50 + 150 (OpenAI default, no cache tokens)
+			// Should sum all tokens from all messages
+			expect(result.contextTokens).toBe(500) // (100 + 200) + (50 + 150)
 		})
 
-		it("should calculate contextTokens from the last condense_context message", () => {
+		it("should reset contextTokens after condense_context message", () => {
 			const messages: ClineMessage[] = [
 				createApiReqStartedMessage('{"tokensIn":100,"tokensOut":200,"cacheWrites":5,"cacheReads":10}', 1000),
 				createCondenseContextMessage(0.002, 500, 1000, 2000),
@@ -290,22 +289,36 @@ describe("getApiMetrics", () => {
 
 			const result = getApiMetrics(messages)
 
-			// Should use newContextTokens from the last condense_context message
+			// Should use newContextTokens from the condense_context message
 			expect(result.contextTokens).toBe(500)
 		})
 
-		it("should prioritize the last message for contextTokens calculation", () => {
+		it("should accumulate tokens after condense_context", () => {
 			const messages: ClineMessage[] = [
-				createCondenseContextMessage(0.002, 500, 1000, 1000),
-				createApiReqStartedMessage('{"tokensIn":100,"tokensOut":200,"cacheWrites":5,"cacheReads":10}', 2000),
-				createCondenseContextMessage(0.003, 400, 800, 3000),
-				createApiReqStartedMessage('{"tokensIn":50,"tokensOut":150,"cacheWrites":3,"cacheReads":7}', 4000),
+				createApiReqStartedMessage('{"tokensIn":100,"tokensOut":200,"cacheWrites":5,"cacheReads":10}', 1000),
+				createCondenseContextMessage(0.002, 500, 1000, 2000),
+				createApiReqStartedMessage('{"tokensIn":50,"tokensOut":150,"cacheWrites":3,"cacheReads":7}', 3000),
 			]
 
 			const result = getApiMetrics(messages)
 
-			// Should use the values from the last api_req_started message
-			expect(result.contextTokens).toBe(200) // 50 + 150 (OpenAI default, no cache tokens)
+			// Should use condense tokens + new tokens after condense
+			expect(result.contextTokens).toBe(700) // 500 + (50 + 150)
+		})
+
+		it("should handle multiple condense_context messages correctly", () => {
+			const messages: ClineMessage[] = [
+				createApiReqStartedMessage('{"tokensIn":100,"tokensOut":200}', 1000),
+				createCondenseContextMessage(0.002, 500, 1000, 2000),
+				createApiReqStartedMessage('{"tokensIn":50,"tokensOut":150}', 3000),
+				createCondenseContextMessage(0.003, 400, 800, 4000),
+				createApiReqStartedMessage('{"tokensIn":25,"tokensOut":75}', 5000),
+			]
+
+			const result = getApiMetrics(messages)
+
+			// Should use the last condense tokens + tokens after it
+			expect(result.contextTokens).toBe(500) // 400 + (25 + 75)
 		})
 
 		it("should handle missing values when calculating contextTokens", () => {
@@ -320,7 +333,7 @@ describe("getApiMetrics", () => {
 			const result = getApiMetrics(messages)
 
 			// Should handle missing or invalid values
-			expect(result.contextTokens).toBe(0) // 0 + 0 (OpenAI default, no cache tokens)
+			expect(result.contextTokens).toBe(0)
 
 			// Restore console.error
 			console.error = originalConsoleError

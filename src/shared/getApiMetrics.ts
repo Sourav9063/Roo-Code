@@ -36,8 +36,20 @@ export function getApiMetrics(messages: ClineMessage[]) {
 		contextTokens: 0,
 	}
 
-	// Calculate running totals
-	messages.forEach((message) => {
+	// Track cumulative context tokens
+	let cumulativeContextTokens = 0
+	let lastCondenseIndex = -1
+
+	// Find the last condense_context message if any
+	for (let i = messages.length - 1; i >= 0; i--) {
+		if (messages[i].type === "say" && messages[i].say === "condense_context") {
+			lastCondenseIndex = i
+			break
+		}
+	}
+
+	// Calculate running totals and context tokens
+	messages.forEach((message, index) => {
 		if (message.type === "say" && message.say === "api_req_started" && message.text) {
 			try {
 				const parsedText: ParsedApiReqStartedTextType = JSON.parse(message.text)
@@ -58,41 +70,34 @@ export function getApiMetrics(messages: ClineMessage[]) {
 				if (typeof cost === "number") {
 					result.totalCost += cost
 				}
+
+				// Add to cumulative context tokens if this message is after the last condense
+				if (index > lastCondenseIndex) {
+					// For context calculation, we count input and output tokens
+					// Cache reads represent tokens that were already in context, so we don't add them
+					// Cache writes are new tokens being added to context
+					if (typeof tokensIn === "number") {
+						cumulativeContextTokens += tokensIn
+					}
+					if (typeof tokensOut === "number") {
+						cumulativeContextTokens += tokensOut
+					}
+				}
 			} catch (error) {
 				console.error("Error parsing JSON:", error)
 			}
 		} else if (message.type === "say" && message.say === "condense_context") {
 			result.totalCost += message.contextCondense?.cost ?? 0
+
+			// When we hit a condense_context, reset the cumulative tokens to the new context size
+			if (index === lastCondenseIndex && message.contextCondense?.newContextTokens !== undefined) {
+				cumulativeContextTokens = message.contextCondense.newContextTokens
+			}
 		}
 	})
 
-	// Calculate context tokens, from the last API request started or condense context message
-	result.contextTokens = 0
-	for (let i = messages.length - 1; i >= 0; i--) {
-		const message = messages[i]
-		if (message.type === "say" && message.say === "api_req_started" && message.text) {
-			try {
-				const parsedText: ParsedApiReqStartedTextType = JSON.parse(message.text)
-				const { tokensIn, tokensOut, cacheWrites, cacheReads, apiProtocol } = parsedText
-
-				// Calculate context tokens based on API protocol
-				if (apiProtocol === "anthropic") {
-					result.contextTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-				} else {
-					// For OpenAI (or when protocol is not specified)
-					result.contextTokens = (tokensIn || 0) + (tokensOut || 0)
-				}
-			} catch (error) {
-				console.error("Error parsing JSON:", error)
-				continue
-			}
-		} else if (message.type === "say" && message.say === "condense_context") {
-			result.contextTokens = message.contextCondense?.newContextTokens ?? 0
-		}
-		if (result.contextTokens) {
-			break
-		}
-	}
+	// Set the final context tokens
+	result.contextTokens = cumulativeContextTokens
 
 	return result
 }
