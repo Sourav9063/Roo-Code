@@ -52,12 +52,12 @@ function processCommand(cmd: any[], patterns: Set<string>) {
 	patterns.add(mainCmd)
 
 	// Patterns that indicate we should stop looking for subcommands
-	const breakingExps = [/^-/, /[\\/.~ ]/]
+	const stopPatterns = [/^-/, /[\\/.~ ]/]
 
 	// Build up patterns progressively
 	for (let i = 1; i < cmd.length; i++) {
 		const arg = cmd[i]
-		if (typeof arg !== "string" || breakingExps.some((re) => re.test(arg))) break
+		if (typeof arg !== "string" || stopPatterns.some((re) => re.test(arg))) break
 
 		const pattern = cmd.slice(0, i + 1).join(" ")
 		patterns.add(pattern)

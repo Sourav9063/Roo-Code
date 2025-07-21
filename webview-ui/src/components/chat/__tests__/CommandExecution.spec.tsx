@@ -412,5 +412,56 @@ Suggested patterns: npm, npm test, npm run
 			expect(conflictState.setAllowedCommands).toHaveBeenCalledWith(["git", "git push"])
 			expect(conflictState.setDeniedCommands).toHaveBeenCalledWith([])
 		})
+
+		it("should handle commands that cannot be parsed and fallback gracefully", () => {
+			// Test with a command that might cause parsing issues
+			const unparsableCommand = "echo 'test with unclosed quote"
+
+			render(
+				<ExtensionStateWrapper>
+					<CommandExecution executionId="test-12" text={unparsableCommand} />
+				</ExtensionStateWrapper>,
+			)
+
+			// Should still render the command
+			expect(screen.getByTestId("code-block")).toHaveTextContent("echo 'test with unclosed quote")
+
+			// Should show pattern selector with at least the main command
+			expect(screen.getByTestId("command-pattern-selector")).toBeInTheDocument()
+			expect(screen.getByText("echo")).toBeInTheDocument()
+		})
+
+		it("should handle empty or whitespace-only commands", () => {
+			render(
+				<ExtensionStateWrapper>
+					<CommandExecution executionId="test-13" text="   " />
+				</ExtensionStateWrapper>,
+			)
+
+			// Should render without errors
+			expect(screen.getByTestId("code-block")).toBeInTheDocument()
+
+			// Should not show pattern selector for empty commands
+			expect(screen.queryByTestId("command-pattern-selector")).not.toBeInTheDocument()
+		})
+
+		it("should handle commands with only output and no command prefix", () => {
+			const outputOnly = `Some output without a command
+Multiple lines of output
+Without any command prefix`
+
+			render(
+				<ExtensionStateWrapper>
+					<CommandExecution executionId="test-14" text={outputOnly} />
+				</ExtensionStateWrapper>,
+			)
+
+			// Should treat the entire text as command when no prefix is found
+			const codeBlock = screen.getByTestId("code-block")
+			// The mock CodeBlock component renders text content without preserving newlines
+			expect(codeBlock.textContent).toContain("Some output without a command")
+			expect(codeBlock.textContent).toContain("Multiple lines of output")
+			expect(codeBlock.textContent).toContain("Without any command prefix")
+		})
 	})
 })
