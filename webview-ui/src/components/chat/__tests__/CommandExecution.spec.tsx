@@ -211,10 +211,11 @@ Suggested patterns: npm, npm install, npm run`
 		expect(codeBlocks[1]).toHaveTextContent("Suggested patterns: npm, npm install, npm run")
 
 		expect(screen.getByTestId("command-pattern-selector")).toBeInTheDocument()
-		// Check that the patterns are present in the mock
+		// Check that only patterns from the actual command are extracted, not from AI suggestions
 		expect(screen.getByText("npm")).toBeInTheDocument()
 		expect(screen.getAllByText("npm install").length).toBeGreaterThan(0)
-		expect(screen.getByText("npm run")).toBeInTheDocument()
+		// "npm run" should NOT be in the patterns since it's only in the AI suggestions, not the actual command
+		expect(screen.queryByText("npm run")).not.toBeInTheDocument()
 	})
 
 	it("should handle commands with pipes", () => {
@@ -417,10 +418,11 @@ Suggested patterns: npm, npm test, npm run
 
 			const selector = screen.getByTestId("command-pattern-selector")
 			expect(selector).toBeInTheDocument()
-			// Should show patterns from suggestions
+			// Should show patterns only from the actual command, not from AI suggestions
 			expect(screen.getAllByText("npm")[0]).toBeInTheDocument()
 			expect(screen.getAllByText("npm test")[0]).toBeInTheDocument()
-			expect(screen.getAllByText("npm run")[0]).toBeInTheDocument()
+			// "npm run" should NOT be in the patterns since it's only in the AI suggestions
+			expect(screen.queryByText("npm run")).not.toBeInTheDocument()
 		})
 
 		it("should update both allowed and denied lists when patterns conflict", () => {
@@ -518,6 +520,72 @@ Without any command prefix`
 			// Verify no output is shown (since command === text means no output)
 			const codeBlocks = screen.getAllByTestId("code-block")
 			expect(codeBlocks).toHaveLength(1) // Only the command block, no output block
+		})
+
+		it("should not extract patterns from command output numbers", () => {
+			// This tests the specific bug where "0 total" from wc output was being extracted as a command
+			const commandWithNumericOutput = `wc -l *.go *.java
+Output:
+			   10 file1.go
+			   20 file2.go
+			   15 Main.java
+			   45 total`
+
+			render(
+				<ExtensionStateWrapper>
+					<CommandExecution executionId="test-16" text={commandWithNumericOutput} />
+				</ExtensionStateWrapper>,
+			)
+
+			// Should render the command and output
+			const codeBlocks = screen.getAllByTestId("code-block")
+			expect(codeBlocks[0]).toHaveTextContent("wc -l *.go *.java")
+
+			// Should show pattern selector
+			const selector = screen.getByTestId("command-pattern-selector")
+			expect(selector).toBeInTheDocument()
+
+			// Should only extract "wc" from the actual command
+			expect(screen.getByText("wc")).toBeInTheDocument()
+
+			// Should NOT extract numeric patterns from output like "45 total"
+			expect(screen.queryByText("45")).not.toBeInTheDocument()
+			expect(screen.queryByText("total")).not.toBeInTheDocument()
+			expect(screen.queryByText("45 total")).not.toBeInTheDocument()
+		})
+
+		it("should handle the edge case of 0 total in output", () => {
+			// This is the exact case from the bug report
+			const commandWithZeroTotal = `wc -l *.go *.java
+Output:
+		     0 total`
+
+			render(
+				<ExtensionStateWrapper>
+					<CommandExecution executionId="test-17" text={commandWithZeroTotal} />
+				</ExtensionStateWrapper>,
+			)
+
+			// Should show pattern selector
+			const selector = screen.getByTestId("command-pattern-selector")
+			expect(selector).toBeInTheDocument()
+
+			// Should only extract "wc" from the actual command
+			// Check within the pattern selector specifically
+			const patternTexts = Array.from(selector.querySelectorAll("span")).map((el) => el.textContent)
+
+			// Should have "wc" as a pattern
+			expect(patternTexts).toContain("wc")
+
+			// Should NOT have "0", "total", or "0 total" as patterns
+			expect(patternTexts).not.toContain("0")
+			expect(patternTexts).not.toContain("total")
+			expect(patternTexts).not.toContain("0 total")
+
+			// The output should still be displayed in the code block
+			const codeBlocks = screen.getAllByTestId("code-block")
+			expect(codeBlocks.length).toBeGreaterThan(1)
+			expect(codeBlocks[1]).toHaveTextContent("0 total")
 		})
 	})
 })

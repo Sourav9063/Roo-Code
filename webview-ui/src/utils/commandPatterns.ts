@@ -39,7 +39,16 @@ export function extractCommandPatterns(command: string): string[] {
 	} catch (_error) {
 		// If parsing fails, try to extract at least the main command
 		const mainCommand = command.trim().split(/\s+/)[0]
-		if (mainCommand) patterns.add(mainCommand)
+
+		// Apply same validation as in processCommand
+		if (
+			mainCommand &&
+			!/^\d+$/.test(mainCommand) && // Skip pure numbers
+			!["total", "error", "warning", "failed", "success", "done"].includes(mainCommand.toLowerCase()) &&
+			(/[a-zA-Z]/.test(mainCommand) || mainCommand.includes("/"))
+		) {
+			patterns.add(mainCommand)
+		}
 	}
 
 	return Array.from(patterns).sort()
@@ -49,7 +58,20 @@ function processCommand(cmd: any[], patterns: Set<string>) {
 	if (!cmd.length || typeof cmd[0] !== "string") return
 
 	const mainCmd = cmd[0]
-	patterns.add(mainCmd)
+
+	// Skip if it's just a number (like "0" from "0 total")
+	if (/^\d+$/.test(mainCmd)) return
+
+	// Skip common output patterns that aren't commands
+	const skipWords = ["total", "error", "warning", "failed", "success", "done"]
+	if (skipWords.includes(mainCmd.toLowerCase())) return
+
+	// Only add if it contains at least one letter or is a valid path
+	if (/[a-zA-Z]/.test(mainCmd) || mainCmd.includes("/")) {
+		patterns.add(mainCmd)
+	} else {
+		return // Don't process further if main command is invalid
+	}
 
 	// Patterns that indicate we should stop looking for subcommands
 	const stopPatterns = [/^-/, /[\\/.~ ]/]

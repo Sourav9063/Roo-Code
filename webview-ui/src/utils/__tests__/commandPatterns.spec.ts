@@ -101,6 +101,18 @@ describe("extractCommandPatterns", () => {
 		const patterns = extractCommandPatterns("npm run build && git push")
 		expect(patterns).toEqual([...patterns].sort())
 	})
+
+	it("should handle numeric input like '0 total'", () => {
+		const patterns = extractCommandPatterns("0 total")
+		// Should return empty array since "0" is not a valid command
+		expect(patterns).toEqual([])
+	})
+
+	it("should handle pure numeric commands", () => {
+		const patterns = extractCommandPatterns("0")
+		// Should return empty array since pure numbers are not valid commands
+		expect(patterns).toEqual([])
+	})
 })
 
 describe("getPatternDescription", () => {
@@ -413,5 +425,77 @@ describe("security integration with extractCommandPatterns", () => {
 		expect(patterns).toContain("git")
 		expect(patterns).toContain("git commit")
 		expect(patterns).not.toContain("date")
+	})
+})
+
+describe("integration: parseCommandAndOutput with extractCommandPatterns", () => {
+	it("should not extract patterns from output text", () => {
+		const text = `wc -l *.go *.java
+Output:
+wc: *.go: open: No such file or directory
+wc: *.java: open: No such file or directory
+0 total`
+		const { command } = parseCommandAndOutput(text)
+		const patterns = extractCommandPatterns(command)
+
+		// Should only extract patterns from the command, not the output
+		expect(patterns).toContain("wc")
+		expect(patterns).not.toContain("0")
+		expect(patterns).not.toContain("total")
+		expect(patterns).not.toContain("0 total")
+	})
+
+	it("should handle the specific wc command case", () => {
+		const text = `wc -l *.go *.java
+Output:
+25 hello_world.go
+316 HelloWorld.java
+341 total`
+		const { command } = parseCommandAndOutput(text)
+		const patterns = extractCommandPatterns(command)
+
+		// Should only extract "wc" from the command
+		expect(patterns).toEqual(["wc"])
+		expect(patterns).not.toContain("341")
+		expect(patterns).not.toContain("total")
+		expect(patterns).not.toContain("341 total")
+	})
+
+	it("should handle wc command with error output", () => {
+		const text = `wc -l *.go *.java
+Output:
+wc: *.go: open: No such file or directory
+wc: *.java: open: No such file or directory
+0 total`
+		const { command, output } = parseCommandAndOutput(text)
+		const patterns = extractCommandPatterns(command)
+
+		// Should only extract "wc" from the command
+		expect(command).toBe("wc -l *.go *.java")
+		expect(output).toContain("0 total")
+		expect(patterns).toEqual(["wc"])
+		expect(patterns).not.toContain("0")
+		expect(patterns).not.toContain("total")
+		expect(patterns).not.toContain("0 total")
+	})
+
+	it("should handle case where only output line is provided", () => {
+		// This simulates if somehow only "0 total" is passed as the text
+		const text = "0 total"
+		const { command } = parseCommandAndOutput(text)
+		const patterns = extractCommandPatterns(command)
+
+		// In this case, the entire text is treated as command
+		expect(command).toBe("0 total")
+		// But "0 total" is not a valid command pattern (starts with number)
+		expect(patterns).toEqual([])
+	})
+
+	it("should handle commands without output separator", () => {
+		const text = "npm install"
+		const { command } = parseCommandAndOutput(text)
+		const patterns = extractCommandPatterns(command)
+
+		expect(patterns).toEqual(["npm", "npm install"])
 	})
 })

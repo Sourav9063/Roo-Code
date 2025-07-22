@@ -36,11 +36,7 @@ export const CommandExecution = ({ executionId, text, icon, title }: CommandExec
 		setDeniedCommands,
 	} = useExtensionState()
 
-	const {
-		command,
-		output: parsedOutput,
-		suggestions,
-	} = useMemo(() => {
+	const { command, output: parsedOutput } = useMemo(() => {
 		// Use the enhanced parser from commandPatterns
 		return parseCommandAndOutput(text || "")
 	}, [text])
@@ -58,31 +54,23 @@ export const CommandExecution = ({ executionId, text, icon, title }: CommandExec
 	// streaming output (this is the case for running commands).
 	const output = streamingOutput || parsedOutput
 
-	// Extract command patterns
+	// Extract command patterns from the actual command that was executed
 	const commandPatterns = useMemo<CommandPattern[]>(() => {
 		const patterns: CommandPattern[] = []
 
-		// Use AI suggestions if available
-		if (suggestions.length > 0) {
-			suggestions.forEach((suggestion: string) => {
-				patterns.push({
-					pattern: suggestion,
-					description: getPatternDescription(suggestion),
-				})
+		// Always extract patterns from the actual command that was executed
+		// We don't use AI suggestions because the patterns should reflect
+		// what was actually executed, not what the AI thinks might be useful
+		const extractedPatterns = extractCommandPatterns(command)
+		extractedPatterns.forEach((pattern) => {
+			patterns.push({
+				pattern,
+				description: getPatternDescription(pattern),
 			})
-		} else {
-			// Extract patterns programmatically
-			const extractedPatterns = extractCommandPatterns(command)
-			extractedPatterns.forEach((pattern) => {
-				patterns.push({
-					pattern,
-					description: getPatternDescription(pattern),
-				})
-			})
-		}
+		})
 
 		return patterns
-	}, [command, suggestions])
+	}, [command])
 
 	// Handle pattern changes
 	const handleAllowPatternChange = (pattern: string) => {
