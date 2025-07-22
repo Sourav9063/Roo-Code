@@ -165,7 +165,42 @@ export class CodeParser implements ICodeParser {
 		const results: CodeBlock[] = []
 
 		// Process captures if not empty
-		const queue: Node[] = Array.from(captures).map((capture) => capture.node)
+		const captureNodes = Array.from(captures).map((capture) => capture.node)
+
+		// Group small related nodes together (e.g., using directives in C#)
+		const groupedNodes = this._groupSmallNodes(captureNodes)
+
+		const queue: Node[] = [...groupedNodes.regularNodes]
+
+		// Process grouped small nodes first
+		for (const group of groupedNodes.groups) {
+			const { nodes, type, identifier } = group
+			const combinedContent = nodes.map((n) => n.text).join("\n")
+			const start_line = nodes[0].startPosition.row + 1
+			const end_line = nodes[nodes.length - 1].endPosition.row + 1
+
+			// Only create a block if the combined content meets the minimum size
+			if (combinedContent.length >= MIN_BLOCK_CHARS) {
+				const contentPreview = combinedContent.slice(0, 100)
+				const segmentHash = createHash("sha256")
+					.update(`${filePath}-${start_line}-${end_line}-${combinedContent.length}-${contentPreview}`)
+					.digest("hex")
+
+				if (!seenSegmentHashes.has(segmentHash)) {
+					seenSegmentHashes.add(segmentHash)
+					results.push({
+						file_path: filePath,
+						identifier,
+						type,
+						start_line,
+						end_line,
+						content: combinedContent,
+						segmentHash,
+						fileHash,
+					})
+				}
+			}
+		}
 
 		while (queue.length > 0) {
 			const currentNode = queue.shift()!
@@ -218,10 +253,86 @@ export class CodeParser implements ICodeParser {
 					}
 				}
 			}
-			// Nodes smaller than minBlockChars are ignored
+			// Nodes smaller than minBlockChars are ignored unless they were grouped
 		}
 
 		return results
+	}
+
+	/**
+	 * Groups small nodes that are semantically related (e.g., consecutive using directives)
+	 * to ensure they meet the minimum block size requirement when combined.
+	 */
+	private _groupSmallNodes(nodes: Node[]): {
+		groups: Array<{ nodes: Node[]; type: string; identifier: string | null }>
+		regularNodes: Node[]
+	} {
+		const groups: Array<{ nodes: Node[]; type: string; identifier: string | null }> = []
+		const regularNodes: Node[] = []
+		const processedIndices = new Set<number>()
+
+		// Group consecutive nodes of the same type that are small
+		for (let i = 0; i < nodes.length; i++) {
+			if (processedIndices.has(i)) continue
+
+			const node = nodes[i]
+
+			// If node is large enough on its own, add to regular nodes
+			if (node.text.length >= MIN_BLOCK_CHARS) {
+				regularNodes.push(node)
+				processedIndices.add(i)
+				continue
+			}
+
+			// Try to group small nodes of the same type
+			const nodeType = node.type
+			const groupNodes: Node[] = [node]
+			processedIndices.add(i)
+
+			// Look for consecutive nodes of the same type
+			for (let j = i + 1; j < nodes.length; j++) {
+				if (processedIndices.has(j)) continue
+
+				const nextNode = nodes[j]
+
+				// Stop grouping if we encounter a different type or a large node
+				if (nextNode.type !== nodeType || nextNode.text.length >= MIN_BLOCK_CHARS) {
+					break
+				}
+
+				// Check if nodes are consecutive (no significant gap between them)
+				const prevEndLine = groupNodes[groupNodes.length - 1].endPosition.row
+				const nextStartLine = nextNode.startPosition.row
+
+				// Allow up to 1 empty line between grouped nodes
+				if (nextStartLine - prevEndLine <= 2) {
+					groupNodes.push(nextNode)
+					processedIndices.add(j)
+				} else {
+					break
+				}
+			}
+
+			// Only create a group if we have multiple nodes or if it's a special type
+			// that should be grouped even when alone (like using directives)
+			if (groupNodes.length > 1 || nodeType === "using_directive") {
+				groups.push({
+					nodes: groupNodes,
+					type: nodeType + "_group",
+					identifier: null,
+				})
+			}
+			// Otherwise, the single small node will be ignored
+		}
+
+		// Add any remaining unprocessed nodes to regular nodes
+		for (let i = 0; i < nodes.length; i++) {
+			if (!processedIndices.has(i) && nodes[i].text.length >= MIN_BLOCK_CHARS) {
+				regularNodes.push(nodes[i])
+			}
+		}
+
+		return { groups, regularNodes }
 	}
 
 	/**
