@@ -497,6 +497,7 @@ export class McpHub {
 			const result = McpSettingsSchema.safeParse(config)
 
 			if (result.success) {
+				// Pass all servers including disabled ones - they'll be handled in updateServerConnections
 				await this.updateServerConnections(result.data.mcpServers || {}, source, false)
 			} else {
 				const errorMessages = result.error.errors
@@ -559,6 +560,26 @@ export class McpHub {
 	): Promise<void> {
 		// Remove existing connection if it exists with the same source
 		await this.deleteConnection(name, source)
+
+		// Skip connecting to disabled servers
+		if (config.disabled) {
+			// Still create a connection object to track the server, but don't actually connect
+			const connection: McpConnection = {
+				server: {
+					name,
+					config: JSON.stringify(config),
+					status: "disconnected",
+					disabled: true,
+					source,
+					projectPath: source === "project" ? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath : undefined,
+					errorHistory: [],
+				},
+				client: null as any, // We won't actually create a client for disabled servers
+				transport: null as any, // We won't actually create a transport for disabled servers
+			}
+			this.connections.push(connection)
+			return
+		}
 
 		try {
 			const client = new Client(
@@ -975,7 +996,10 @@ export class McpHub {
 			if (!currentConnection) {
 				// New server
 				try {
-					this.setupFileWatcher(name, validatedConfig, source)
+					// Only setup file watcher for enabled servers
+					if (!validatedConfig.disabled) {
+						this.setupFileWatcher(name, validatedConfig, source)
+					}
 					await this.connectToServer(name, validatedConfig, source)
 				} catch (error) {
 					this.showErrorMessage(`Failed to connect to new MCP server ${name}`, error)
@@ -983,7 +1007,10 @@ export class McpHub {
 			} else if (!deepEqual(JSON.parse(currentConnection.server.config), config)) {
 				// Existing server with changed config
 				try {
-					this.setupFileWatcher(name, validatedConfig, source)
+					// Only setup file watcher for enabled servers
+					if (!validatedConfig.disabled) {
+						this.setupFileWatcher(name, validatedConfig, source)
+					}
 					await this.deleteConnection(name, source)
 					await this.connectToServer(name, validatedConfig, source)
 				} catch (error) {
@@ -1257,8 +1284,18 @@ export class McpHub {
 				try {
 					connection.server.disabled = disabled
 
-					// Only refresh capabilities if connected
-					if (connection.server.status === "connected") {
+					// If disabling a connected server, disconnect it
+					if (disabled && connection.server.status === "connected") {
+						await this.deleteConnection(serverName, serverSource)
+						// Re-add as a disabled connection
+						await this.connectToServer(serverName, JSON.parse(connection.server.config), serverSource)
+					} else if (!disabled && connection.server.status === "disconnected") {
+						// If enabling a disabled server, connect it
+						const config = JSON.parse(connection.server.config)
+						await this.deleteConnection(serverName, serverSource)
+						await this.connectToServer(serverName, config, serverSource)
+					} else if (connection.server.status === "connected") {
+						// Only refresh capabilities if connected
 						connection.server.tools = await this.fetchToolsList(serverName, serverSource)
 						connection.server.resources = await this.fetchResourcesList(serverName, serverSource)
 						connection.server.resourceTemplates = await this.fetchResourceTemplatesList(
