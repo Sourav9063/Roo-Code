@@ -6,6 +6,7 @@ import { type ModelInfo, openAiModelInfoSaneDefaults, DEEP_SEEK_DEFAULT_TEMPERAT
 import type { ApiHandlerOptions } from "../../shared/api"
 
 import { XmlMatcher } from "../../utils/xml-matcher"
+import { joinUrlPath } from "../../utils/url-normalization"
 
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
@@ -23,8 +24,9 @@ export class OllamaHandler extends BaseProvider implements SingleCompletionHandl
 	constructor(options: ApiHandlerOptions) {
 		super()
 		this.options = options
+		const baseUrl = this.options.ollamaBaseUrl || "http://localhost:11434"
 		this.client = new OpenAI({
-			baseURL: (this.options.ollamaBaseUrl || "http://localhost:11434") + "/v1",
+			baseURL: joinUrlPath(baseUrl, "/v1"),
 			apiKey: "ollama",
 		})
 	}

@@ -6,6 +6,7 @@ import { t } from "../../../i18n"
 import { withValidationErrorHandling, sanitizeErrorMessage } from "../shared/validation-helpers"
 import { TelemetryService } from "@roo-code/telemetry"
 import { TelemetryEventName } from "@roo-code/types"
+import { joinUrlPath } from "../../../utils/url-normalization"
 
 // Timeout constants for Ollama API requests
 const OLLAMA_EMBEDDING_TIMEOUT_MS = 60000 // 60 seconds for embedding requests
@@ -32,7 +33,7 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 	 */
 	async createEmbeddings(texts: string[], model?: string): Promise<EmbeddingResponse> {
 		const modelToUse = model || this.defaultModelId
-		const url = `${this.baseUrl}/api/embed` // Endpoint as specified
+		const url = joinUrlPath(this.baseUrl, "/api/embed") // Endpoint as specified
 
 		// Apply model-specific query prefix if required
 		const queryPrefix = getModelQueryPrefix("ollama", modelToUse)
@@ -140,7 +141,7 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 		return withValidationErrorHandling(
 			async () => {
 				// First check if Ollama service is running by trying to list models
-				const modelsUrl = `${this.baseUrl}/api/tags`
+				const modelsUrl = joinUrlPath(this.baseUrl, "/api/tags")
 
 				// Add timeout to prevent indefinite hanging
 				const controller = new AbortController()
@@ -197,7 +198,7 @@ export class CodeIndexOllamaEmbedder implements IEmbedder {
 				}
 
 				// Try a test embedding to ensure the model works for embeddings
-				const testUrl = `${this.baseUrl}/api/embed`
+				const testUrl = joinUrlPath(this.baseUrl, "/api/embed")
 
 				// Add timeout for test request too
 				const testController = new AbortController()

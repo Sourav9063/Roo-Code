@@ -1,6 +1,7 @@
 import axios from "axios"
 import { ModelInfo, ollamaDefaultModelInfo } from "@roo-code/types"
 import { z } from "zod"
+import { joinUrlPath } from "../../../utils/url-normalization"
 
 const OllamaModelDetailsSchema = z.object({
 	family: z.string(),
@@ -65,7 +66,7 @@ export async function getOllamaModels(baseUrl = "http://localhost:11434"): Promi
 			return models
 		}
 
-		const response = await axios.get<OllamaModelsResponse>(`${baseUrl}/api/tags`)
+		const response = await axios.get<OllamaModelsResponse>(joinUrlPath(baseUrl, "/api/tags"))
 		const parsedResponse = OllamaModelsResponseSchema.safeParse(response.data)
 		let modelInfoPromises = []
 
@@ -73,7 +74,7 @@ export async function getOllamaModels(baseUrl = "http://localhost:11434"): Promi
 			for (const ollamaModel of parsedResponse.data.models) {
 				modelInfoPromises.push(
 					axios
-						.post<OllamaModelInfoResponse>(`${baseUrl}/api/show`, {
+						.post<OllamaModelInfoResponse>(joinUrlPath(baseUrl, "/api/show"), {
 							model: ollamaModel.model,
 						})
 						.then((ollamaModelInfo) => {
