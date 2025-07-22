@@ -21,6 +21,19 @@ vi.mock("../../common/CodeBlock", () => ({
 	default: ({ source }: { source: string }) => <div data-testid="code-block">{source}</div>,
 }))
 
+// Mock the commandPatterns module but use the actual implementation
+vi.mock("../../../utils/commandPatterns", async () => {
+	const actual = await vi.importActual<typeof import("../../../utils/commandPatterns")>(
+		"../../../utils/commandPatterns",
+	)
+	return {
+		...actual,
+		parseCommandAndOutput: actual.parseCommandAndOutput,
+		extractCommandPatterns: actual.extractCommandPatterns,
+		getPatternDescription: actual.getPatternDescription,
+	}
+})
+
 vi.mock("../CommandPatternSelector", () => ({
 	CommandPatternSelector: ({ patterns, onAllowPatternChange, onDenyPatternChange }: any) => (
 		<div data-testid="command-pattern-selector">
@@ -66,7 +79,7 @@ describe("CommandExecution", () => {
 	it("should render command with output", () => {
 		render(
 			<ExtensionStateWrapper>
-				<CommandExecution executionId="test-1" text="npm install\n\nCommand Output:\nInstalling packages..." />
+				<CommandExecution executionId="test-1" text="npm install\nOutput:\nInstalling packages..." />
 			</ExtensionStateWrapper>,
 		)
 
@@ -166,29 +179,42 @@ describe("CommandExecution", () => {
 		expect(vscode.postMessage).toHaveBeenCalledWith({ type: "deniedCommands", commands: [] })
 	})
 
-	it("should parse command with $ prefix", () => {
+	it("should parse command with Output: separator", () => {
+		const commandText = `npm install
+Output:
+Installing...`
+
 		render(
 			<ExtensionStateWrapper>
-				<CommandExecution executionId="test-1" text="$ npm install\nInstalling..." />
+				<CommandExecution executionId="test-1" text={commandText} />
 			</ExtensionStateWrapper>,
 		)
 
-		expect(screen.getByTestId("code-block")).toHaveTextContent("npm install")
+		const codeBlocks = screen.getAllByTestId("code-block")
+		expect(codeBlocks[0]).toHaveTextContent("npm install")
 	})
 
 	it("should parse command with AI suggestions", () => {
+		const commandText = `npm install
+Output:
+Suggested patterns: npm, npm install, npm run`
+
 		render(
 			<ExtensionStateWrapper>
-				<CommandExecution
-					executionId="test-1"
-					text="$ npm install\nSuggested patterns: npm, npm install, npm run"
-				/>
+				<CommandExecution executionId="test-1" text={commandText} />
 			</ExtensionStateWrapper>,
 		)
+
+		// First check that the command was parsed correctly
+		const codeBlocks = screen.getAllByTestId("code-block")
+		expect(codeBlocks[0]).toHaveTextContent("npm install")
+		expect(codeBlocks[1]).toHaveTextContent("Suggested patterns: npm, npm install, npm run")
 
 		expect(screen.getByTestId("command-pattern-selector")).toBeInTheDocument()
 		// Check that the patterns are present in the mock
 		expect(screen.getByText("npm")).toBeInTheDocument()
+		expect(screen.getAllByText("npm install").length).toBeGreaterThan(0)
+		expect(screen.getByText("npm run")).toBeInTheDocument()
 	})
 
 	it("should handle commands with pipes", () => {
@@ -232,14 +258,20 @@ describe("CommandExecution", () => {
 			terminalShellIntegrationDisabled: true,
 		}
 
+		const commandText = `npm install
+Output:
+Output here`
+
 		render(
 			<ExtensionStateContext.Provider value={disabledState as any}>
-				<CommandExecution executionId="test-1" text="npm install\n\nCommand Output:\nOutput here" />
+				<CommandExecution executionId="test-1" text={commandText} />
 			</ExtensionStateContext.Provider>,
 		)
 
 		// Output should be visible when shell integration is disabled
-		expect(screen.getByText(/Output here/)).toBeInTheDocument()
+		const codeBlocks = screen.getAllByTestId("code-block")
+		expect(codeBlocks).toHaveLength(2) // Command and output blocks
+		expect(codeBlocks[1]).toHaveTextContent("Output here")
 	})
 
 	it("should handle undefined allowedCommands and deniedCommands", () => {

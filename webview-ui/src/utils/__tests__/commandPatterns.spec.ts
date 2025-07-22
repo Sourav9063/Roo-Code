@@ -133,25 +133,28 @@ describe("getPatternDescription", () => {
 })
 
 describe("parseCommandAndOutput", () => {
-	it("should parse command with $ prefix", () => {
+	it("should handle command with $ prefix without Output: separator", () => {
 		const text = "$ npm install\nInstalling packages..."
 		const result = parseCommandAndOutput(text)
-		expect(result.command).toBe("npm install")
-		expect(result.output).toBe("Installing packages...")
+		// Without Output: separator, the entire text is treated as command
+		expect(result.command).toBe("$ npm install\nInstalling packages...")
+		expect(result.output).toBe("")
 	})
 
-	it("should parse command with ❯ prefix", () => {
+	it("should handle command with ❯ prefix without Output: separator", () => {
 		const text = "❯ git status\nOn branch main"
 		const result = parseCommandAndOutput(text)
-		expect(result.command).toBe("git status")
-		expect(result.output).toBe("On branch main")
+		// Without Output: separator, the entire text is treated as command
+		expect(result.command).toBe("❯ git status\nOn branch main")
+		expect(result.output).toBe("")
 	})
 
-	it("should parse command with > prefix", () => {
+	it("should handle command with > prefix without Output: separator", () => {
 		const text = "> echo hello\nhello"
 		const result = parseCommandAndOutput(text)
-		expect(result.command).toBe("echo hello")
-		expect(result.output).toBe("hello")
+		// Without Output: separator, the entire text is treated as command
+		expect(result.command).toBe("> echo hello\nhello")
+		expect(result.output).toBe("")
 	})
 
 	it("should return original text if no command prefix found", () => {
@@ -161,43 +164,50 @@ describe("parseCommandAndOutput", () => {
 		expect(result.output).toBe("")
 	})
 
-	it("should extract AI suggestions from output", () => {
-		const text = "$ npm install\nSuggested patterns: npm, npm install, npm run"
+	it("should extract AI suggestions from output with Output: separator", () => {
+		const text = "npm install\nOutput:\nSuggested patterns: npm, npm install, npm run"
 		const result = parseCommandAndOutput(text)
+		expect(result.command).toBe("npm install")
 		expect(result.suggestions).toEqual(["npm", "npm install", "npm run"])
 	})
 
 	it("should extract suggestions with different formats", () => {
-		const text = "$ git push\nCommand patterns: git, git push"
+		const text = "git push\nOutput:\nCommand patterns: git, git push"
 		const result = parseCommandAndOutput(text)
+		expect(result.command).toBe("git push")
 		expect(result.suggestions).toEqual(["git", "git push"])
 	})
 
 	it('should extract suggestions from "you can allow" format', () => {
-		const text = "$ docker run\nYou can allow: docker, docker run"
+		const text = "docker run\nOutput:\nYou can allow: docker, docker run"
 		const result = parseCommandAndOutput(text)
+		expect(result.command).toBe("docker run")
 		expect(result.suggestions).toEqual(["docker", "docker run"])
 	})
 
 	it("should extract suggestions from bullet points", () => {
-		const text = `$ npm test
+		const text = `npm test
+Output:
 Output here...
 - npm
 - npm test
 - npm run`
 		const result = parseCommandAndOutput(text)
+		expect(result.command).toBe("npm test")
 		expect(result.suggestions).toContain("npm")
 		expect(result.suggestions).toContain("npm test")
 		expect(result.suggestions).toContain("npm run")
 	})
 
 	it("should extract suggestions from various bullet formats", () => {
-		const text = `$ command
+		const text = `command
+Output:
 • npm
 * git
 - docker
 ▪ python`
 		const result = parseCommandAndOutput(text)
+		expect(result.command).toBe("command")
 		expect(result.suggestions).toContain("npm")
 		expect(result.suggestions).toContain("git")
 		expect(result.suggestions).toContain("docker")
@@ -205,8 +215,9 @@ Output here...
 	})
 
 	it("should extract suggestions with backticks", () => {
-		const text = "$ npm install\n- `npm`\n- `npm install`"
+		const text = "npm install\nOutput:\n- `npm`\n- `npm install`"
 		const result = parseCommandAndOutput(text)
+		expect(result.command).toBe("npm install")
 		expect(result.suggestions).toContain("npm")
 		expect(result.suggestions).toContain("npm install")
 	})
@@ -218,25 +229,28 @@ Output here...
 		expect(result.suggestions).toEqual([])
 	})
 
-	it("should handle multiline commands", () => {
+	it("should handle multiline commands without Output: separator", () => {
 		const text = `$ npm install \\
-  express \\
-  mongoose
+	 express \\
+	 mongoose
 Installing...`
 		const result = parseCommandAndOutput(text)
-		expect(result.command).toBe("npm install \\")
-		expect(result.output).toContain("express")
+		// Without Output: separator, entire text is treated as command
+		expect(result.command).toBe(text)
+		expect(result.output).toBe("")
 	})
 
-	it("should include all suggestions from comma-separated list", () => {
-		const text = "$ test\nSuggested patterns: npm, npm install, npm run"
+	it("should include all suggestions from comma-separated list with Output: separator", () => {
+		const text = "test\nOutput:\nSuggested patterns: npm, npm install, npm run"
 		const result = parseCommandAndOutput(text)
+		expect(result.command).toBe("test")
 		expect(result.suggestions).toEqual(["npm", "npm install", "npm run"])
 	})
 
 	it("should handle case variations in suggestion patterns", () => {
-		const text = "$ test\nSuggested Patterns: npm, git\nCommand Patterns: docker"
+		const text = "test\nOutput:\nSuggested Patterns: npm, git\nCommand Patterns: docker"
 		const result = parseCommandAndOutput(text)
+		expect(result.command).toBe("test")
 		// Now it should accumulate all suggestions
 		expect(result.suggestions).toContain("npm")
 		expect(result.suggestions).toContain("git")
@@ -276,6 +290,55 @@ Installing...`
 		const result = parseCommandAndOutput(text)
 		expect(result.command).toBe('echo "test"')
 		expect(result.output).toBe("First output\nOutput: Second output")
+	})
+
+	it("should handle output with numbers at the start of lines", () => {
+		const text = `wc -l *.go *.java
+Output:
+25 hello_world.go
+316 HelloWorld.java
+341 total`
+		const result = parseCommandAndOutput(text)
+		expect(result.command).toBe("wc -l *.go *.java")
+		expect(result.output).toBe("25 hello_world.go\n316 HelloWorld.java\n341 total")
+		expect(result.suggestions).toEqual([])
+	})
+
+	it("should handle edge case where text starts with Output:", () => {
+		const text = "Output:\nSome output without a command"
+		const result = parseCommandAndOutput(text)
+		expect(result.command).toBe("")
+		expect(result.output).toBe("Some output without a command")
+	})
+
+	it("should not be confused by Output: appearing in the middle of output", () => {
+		const text = `echo "Output: test"
+Output:
+Output: test`
+		const result = parseCommandAndOutput(text)
+		expect(result.command).toBe('echo "Output: test"')
+		expect(result.output).toBe("Output: test")
+	})
+
+	it("should handle commands without shell prompt when Output: separator is present", () => {
+		const text = `npm install
+Output:
+Installing packages...`
+		const result = parseCommandAndOutput(text)
+		expect(result.command).toBe("npm install")
+		expect(result.output).toBe("Installing packages...")
+	})
+
+	it("should not parse shell prompts from output when Output: separator exists", () => {
+		const text = `ls -la
+Output:
+$ total 341
+drwxr-xr-x  10 user  staff   320 Jan 22 12:00 .
+drwxr-xr-x  20 user  staff   640 Jan 22 11:00 ..`
+		const result = parseCommandAndOutput(text)
+		expect(result.command).toBe("ls -la")
+		expect(result.output).toContain("$ total 341")
+		expect(result.output).toContain("drwxr-xr-x")
 	})
 })
 

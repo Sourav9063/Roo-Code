@@ -101,20 +101,30 @@ export function parseCommandAndOutput(text: string): {
 	// First check if the text already has been split by COMMAND_OUTPUT_STRING
 	// This happens when the command has already been executed and we have the output
 	const outputSeparator = "Output:"
-	const outputIndex = text.indexOf(outputSeparator)
+	const outputIndex = text.indexOf(`\n${outputSeparator}`)
 
 	if (outputIndex !== -1) {
 		// Text is already split into command and output
+		// The command is everything before the output separator
 		result.command = text.slice(0, outputIndex).trim()
-		result.output = text.slice(outputIndex + outputSeparator.length).trim()
-	} else {
-		// Try to extract command from the text
-		// Look for patterns like "$ command" or "❯ command" at the start
-		const commandMatch = text.match(/^[$❯>]\s*(.+?)(?:\n|$)/m)
-		if (commandMatch) {
-			result.command = commandMatch[1].trim()
-			result.output = text.substring(commandMatch.index! + commandMatch[0].length).trim()
+		// The output is everything after the output separator
+		// We need to skip the newline and "Output:" text
+		const afterNewline = outputIndex + 1 // Skip the newline
+		const afterSeparator = afterNewline + outputSeparator.length // Skip "Output:"
+		// Check if there's a colon and potential space after it
+		let startOfOutput = afterSeparator
+		if (text[afterSeparator] === "\n") {
+			startOfOutput = afterSeparator + 1 // Skip additional newline after "Output:"
 		}
+		result.output = text.slice(startOfOutput).trim()
+	} else if (text.indexOf(outputSeparator) === 0) {
+		// Edge case: text starts with "Output:" (no command)
+		result.command = ""
+		result.output = text.slice(outputSeparator.length).trim()
+	} else {
+		// No output separator found, the entire text is the command
+		result.command = text.trim()
+		result.output = ""
 	}
 
 	// Look for AI suggestions in the output
