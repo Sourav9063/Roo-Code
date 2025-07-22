@@ -80,6 +80,7 @@ export async function parseMentions(
 	fileContextTracker?: FileContextTracker,
 	rooIgnoreController?: RooIgnoreController,
 	showRooIgnoredFiles: boolean = true,
+	maxReadFileLine?: number,
 ): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
@@ -147,7 +148,13 @@ export async function parseMentions(
 		} else if (mention.startsWith("/")) {
 			const mentionPath = mention.slice(1)
 			try {
-				const content = await getFileOrFolderContent(mentionPath, cwd, rooIgnoreController, showRooIgnoredFiles)
+				const content = await getFileOrFolderContent(
+					mentionPath,
+					cwd,
+					rooIgnoreController,
+					showRooIgnoredFiles,
+					maxReadFileLine,
+				)
 				if (mention.endsWith("/")) {
 					parsedText += `\n\n<folder_content path="${mentionPath}">\n${content}\n</folder_content>`
 				} else {
@@ -210,6 +217,7 @@ async function getFileOrFolderContent(
 	cwd: string,
 	rooIgnoreController?: any,
 	showRooIgnoredFiles: boolean = true,
+	maxReadFileLine?: number,
 ): Promise<string> {
 	const unescapedPath = unescapeSpaces(mentionPath)
 	const absPath = path.resolve(cwd, unescapedPath)
@@ -222,7 +230,7 @@ async function getFileOrFolderContent(
 				return `(File ${mentionPath} is ignored by .rooignore)`
 			}
 			try {
-				const content = await extractTextFromFile(absPath)
+				const content = await extractTextFromFile(absPath, maxReadFileLine)
 				return content
 			} catch (error) {
 				return `(Failed to read contents of ${mentionPath}): ${error.message}`
@@ -262,7 +270,7 @@ async function getFileOrFolderContent(
 									if (isBinary) {
 										return undefined
 									}
-									const content = await extractTextFromFile(absoluteFilePath)
+									const content = await extractTextFromFile(absoluteFilePath, maxReadFileLine)
 									return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
 								} catch (error) {
 									return undefined

@@ -13,6 +13,7 @@ export async function processUserContentMentions({
 	fileContextTracker,
 	rooIgnoreController,
 	showRooIgnoredFiles = true,
+	maxReadFileLine,
 }: {
 	userContent: Anthropic.Messages.ContentBlockParam[]
 	cwd: string
@@ -20,6 +21,7 @@ export async function processUserContentMentions({
 	fileContextTracker: FileContextTracker
 	rooIgnoreController?: any
 	showRooIgnoredFiles?: boolean
+	maxReadFileLine?: number
 }) {
 	// Process userContent array, which contains various block types:
 	// TextBlockParam, ImageBlockParam, ToolUseBlockParam, and ToolResultBlockParam.
@@ -46,6 +48,7 @@ export async function processUserContentMentions({
 							fileContextTracker,
 							rooIgnoreController,
 							showRooIgnoredFiles,
+							maxReadFileLine,
 						),
 					}
 				}
@@ -63,6 +66,7 @@ export async function processUserContentMentions({
 								fileContextTracker,
 								rooIgnoreController,
 								showRooIgnoredFiles,
+								maxReadFileLine,
 							),
 						}
 					}
@@ -81,6 +85,7 @@ export async function processUserContentMentions({
 										fileContextTracker,
 										rooIgnoreController,
 										showRooIgnoredFiles,
+										maxReadFileLine,
 									),
 								}
 							}
