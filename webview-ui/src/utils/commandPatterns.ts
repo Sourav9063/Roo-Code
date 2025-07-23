@@ -1,4 +1,4 @@
-import { parse } from "shell-quote"
+import { parseCommand } from "./command-validation"
 
 export interface CommandPattern {
 	pattern: string
@@ -15,75 +15,57 @@ export function extractCommandPatterns(command: string): string[] {
 
 	const patterns = new Set<string>()
 
-	try {
-		// First, remove subshell expressions to avoid extracting their contents
-		const cleanedCommand = command
-			.replace(/\$\([^)]*\)/g, "") // Remove $() subshells
-			.replace(/`[^`]*`/g, "") // Remove backtick subshells
+	// First, check if the command contains subshells and remove them
+	// This is important for security - we don't want to extract patterns from subshell contents
+	const cleanedCommand = command
+		.replace(/\$\([^)]*\)/g, "") // Remove $() subshells
+		.replace(/`[^`]*`/g, "") // Remove backtick subshells
 
-		const parsed = parse(cleanedCommand)
+	// Use parseCommand to split the cleaned command into sub-commands
+	// This ensures consistent parsing behavior with command-validation
+	const subCommands = parseCommand(cleanedCommand)
 
-		const commandSeparators = new Set(["|", "&&", "||", ";"])
-		let current: any[] = []
+	// Process each sub-command to extract patterns
+	for (const subCommand of subCommands) {
+		// Skip empty commands
+		if (!subCommand.trim()) continue
 
-		for (const token of parsed) {
-			if (typeof token === "object" && "op" in token && token.op && commandSeparators.has(token.op)) {
-				if (current.length) processCommand(current, patterns)
-				current = []
-			} else {
-				current.push(token)
+		// Split the command into tokens
+		const tokens = subCommand.trim().split(/\s+/)
+
+		if (tokens.length === 0) continue
+
+		const mainCmd = tokens[0]
+
+		// Skip if it's just a number (like "0" from "0 total")
+		if (/^\d+$/.test(mainCmd)) continue
+
+		// Skip common output patterns that aren't commands
+		const skipWords = ["total", "error", "warning", "failed", "success", "done"]
+		if (skipWords.includes(mainCmd.toLowerCase())) continue
+
+		// Only add if it contains at least one letter or is a valid path
+		if (/[a-zA-Z]/.test(mainCmd) || mainCmd.includes("/")) {
+			patterns.add(mainCmd)
+
+			// Build up patterns progressively (e.g., "npm", "npm install", "npm install express")
+			// Stop at flags or special characters
+			const stopPatterns = [/^-/, /[\\/.~]/]
+
+			for (let i = 1; i < tokens.length; i++) {
+				const token = tokens[i]
+
+				// Stop if we hit a flag or special character
+				if (stopPatterns.some((re) => re.test(token))) break
+
+				// Build the pattern up to this point
+				const pattern = tokens.slice(0, i + 1).join(" ")
+				patterns.add(pattern)
 			}
-		}
-
-		if (current.length) processCommand(current, patterns)
-	} catch (_error) {
-		// If parsing fails, try to extract at least the main command
-		const mainCommand = command.trim().split(/\s+/)[0]
-
-		// Apply same validation as in processCommand
-		if (
-			mainCommand &&
-			!/^\d+$/.test(mainCommand) && // Skip pure numbers
-			!["total", "error", "warning", "failed", "success", "done"].includes(mainCommand.toLowerCase()) &&
-			(/[a-zA-Z]/.test(mainCommand) || mainCommand.includes("/"))
-		) {
-			patterns.add(mainCommand)
 		}
 	}
 
 	return Array.from(patterns).sort()
-}
-
-function processCommand(cmd: any[], patterns: Set<string>) {
-	if (!cmd.length || typeof cmd[0] !== "string") return
-
-	const mainCmd = cmd[0]
-
-	// Skip if it's just a number (like "0" from "0 total")
-	if (/^\d+$/.test(mainCmd)) return
-
-	// Skip common output patterns that aren't commands
-	const skipWords = ["total", "error", "warning", "failed", "success", "done"]
-	if (skipWords.includes(mainCmd.toLowerCase())) return
-
-	// Only add if it contains at least one letter or is a valid path
-	if (/[a-zA-Z]/.test(mainCmd) || mainCmd.includes("/")) {
-		patterns.add(mainCmd)
-	} else {
-		return // Don't process further if main command is invalid
-	}
-
-	// Patterns that indicate we should stop looking for subcommands
-	const stopPatterns = [/^-/, /[\\/.~ ]/]
-
-	// Build up patterns progressively
-	for (let i = 1; i < cmd.length; i++) {
-		const arg = cmd[i]
-		if (typeof arg !== "string" || stopPatterns.some((re) => re.test(arg))) break
-
-		const pattern = cmd.slice(0, i + 1).join(" ")
-		patterns.add(pattern)
-	}
 }
 
 export function detectSecurityIssues(command: string): SecurityWarning[] {
