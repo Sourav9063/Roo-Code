@@ -880,6 +880,23 @@ export const webviewMessageHandler = async (
 		case "mcpEnabled":
 			const mcpEnabled = message.bool ?? true
 			await updateGlobalState("mcpEnabled", mcpEnabled)
+
+			// If MCP is being disabled, disconnect all servers
+			const mcpHubInstance = provider.getMcpHub()
+			if (!mcpEnabled && mcpHubInstance) {
+				// Disconnect all existing connections
+				const existingConnections = [...mcpHubInstance.connections]
+				for (const conn of existingConnections) {
+					await mcpHubInstance.deleteConnection(conn.server.name, conn.server.source)
+				}
+
+				// Re-initialize servers to track them in disconnected state
+				await mcpHubInstance.refreshAllConnections()
+			} else if (mcpEnabled && mcpHubInstance) {
+				// If MCP is being enabled, reconnect all servers
+				await mcpHubInstance.refreshAllConnections()
+			}
+
 			await provider.postStateToWebview()
 			break
 		case "enableMcpServerCreation":
