@@ -561,6 +561,34 @@ export class McpHub {
 		// Remove existing connection if it exists with the same source
 		await this.deleteConnection(name, source)
 
+		// Check if MCP is globally enabled
+		const provider = this.providerRef.deref()
+		if (provider) {
+			const state = await provider.getState()
+			const mcpEnabled = state.mcpEnabled ?? true
+
+			// Skip connecting if MCP is globally disabled
+			if (!mcpEnabled) {
+				// Still create a connection object to track the server, but don't actually connect
+				const connection: McpConnection = {
+					server: {
+						name,
+						config: JSON.stringify(config),
+						status: "disconnected",
+						disabled: config.disabled,
+						source,
+						projectPath:
+							source === "project" ? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath : undefined,
+						errorHistory: [],
+					},
+					client: null as any, // We won't actually create a client when MCP is disabled
+					transport: null as any, // We won't actually create a transport when MCP is disabled
+				}
+				this.connections.push(connection)
+				return
+			}
+		}
+
 		// Skip connecting to disabled servers
 		if (config.disabled) {
 			// Still create a connection object to track the server, but don't actually connect
@@ -1100,6 +1128,16 @@ export class McpHub {
 			return
 		}
 
+		// Check if MCP is globally enabled
+		const state = await provider.getState()
+		const mcpEnabled = state.mcpEnabled ?? true
+
+		// Skip restarting if MCP is globally disabled
+		if (!mcpEnabled) {
+			this.isConnecting = false
+			return
+		}
+
 		// Get existing connection and update its status
 		const connection = this.findConnection(serverName, source)
 		const config = connection?.server.config
@@ -1136,6 +1174,29 @@ export class McpHub {
 		if (this.isConnecting) {
 			vscode.window.showInformationMessage(t("mcp:info.already_refreshing"))
 			return
+		}
+
+		// Check if MCP is globally enabled
+		const provider = this.providerRef.deref()
+		if (provider) {
+			const state = await provider.getState()
+			const mcpEnabled = state.mcpEnabled ?? true
+
+			// Skip refreshing if MCP is globally disabled
+			if (!mcpEnabled) {
+				// Clear all existing connections
+				const existingConnections = [...this.connections]
+				for (const conn of existingConnections) {
+					await this.deleteConnection(conn.server.name, conn.server.source)
+				}
+
+				// Still initialize servers to track them, but they won't connect
+				await this.initializeMcpServers("global")
+				await this.initializeMcpServers("project")
+
+				await this.notifyWebviewOfServerChanges()
+				return
+			}
 		}
 
 		this.isConnecting = true

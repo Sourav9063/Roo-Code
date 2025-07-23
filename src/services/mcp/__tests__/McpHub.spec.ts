@@ -108,6 +108,7 @@ describe("McpHub", () => {
 			ensureSettingsDirectoryExists: vi.fn().mockResolvedValue("/mock/settings/path"),
 			ensureMcpServersDirectoryExists: vi.fn().mockResolvedValue("/mock/settings/path"),
 			postMessageToWebview: vi.fn(),
+			getState: vi.fn().mockResolvedValue({ mcpEnabled: true }),
 			context: {
 				subscriptions: [],
 				workspaceState: {} as any,
@@ -874,6 +875,122 @@ describe("McpHub", () => {
 					}),
 				)
 			})
+		})
+	})
+
+	describe("MCP global enable/disable", () => {
+		beforeEach(() => {
+			// Clear all mocks before each test
+			vi.clearAllMocks()
+		})
+
+		it("should not connect to servers when MCP is globally disabled", async () => {
+			// Mock provider with mcpEnabled: false
+			const disabledMockProvider = {
+				ensureSettingsDirectoryExists: vi.fn().mockResolvedValue("/mock/settings/path"),
+				ensureMcpServersDirectoryExists: vi.fn().mockResolvedValue("/mock/settings/path"),
+				postMessageToWebview: vi.fn(),
+				getState: vi.fn().mockResolvedValue({ mcpEnabled: false }),
+				context: mockProvider.context,
+			}
+
+			// Mock the config file read with a different server name to avoid conflicts
+			vi.mocked(fs.readFile).mockResolvedValue(
+				JSON.stringify({
+					mcpServers: {
+						"disabled-test-server": {
+							command: "node",
+							args: ["test.js"],
+						},
+					},
+				}),
+			)
+
+			// Create a new McpHub instance with disabled MCP
+			const mcpHub = new McpHub(disabledMockProvider as unknown as ClineProvider)
+
+			// Wait for initialization
+			await new Promise((resolve) => setTimeout(resolve, 100))
+
+			// Find the disabled-test-server
+			const disabledServer = mcpHub.connections.find((conn) => conn.server.name === "disabled-test-server")
+
+			// Verify that the server is tracked but not connected
+			expect(disabledServer).toBeDefined()
+			expect(disabledServer!.server.status).toBe("disconnected")
+			expect(disabledServer!.client).toBeNull()
+			expect(disabledServer!.transport).toBeNull()
+		})
+
+		it("should connect to servers when MCP is globally enabled", async () => {
+			// Clear all mocks
+			vi.clearAllMocks()
+
+			// Mock StdioClientTransport
+			const stdioModule = await import("@modelcontextprotocol/sdk/client/stdio.js")
+			const StdioClientTransport = stdioModule.StdioClientTransport as ReturnType<typeof vi.fn>
+
+			const mockTransport = {
+				start: vi.fn().mockResolvedValue(undefined),
+				close: vi.fn().mockResolvedValue(undefined),
+				stderr: {
+					on: vi.fn(),
+				},
+				onerror: null,
+				onclose: null,
+			}
+
+			StdioClientTransport.mockImplementation(() => mockTransport)
+
+			// Mock Client
+			const clientModule = await import("@modelcontextprotocol/sdk/client/index.js")
+			const Client = clientModule.Client as ReturnType<typeof vi.fn>
+
+			Client.mockImplementation(() => ({
+				connect: vi.fn().mockResolvedValue(undefined),
+				close: vi.fn().mockResolvedValue(undefined),
+				getInstructions: vi.fn().mockReturnValue("test instructions"),
+				request: vi.fn().mockResolvedValue({ tools: [], resources: [], resourceTemplates: [] }),
+			}))
+
+			// Mock provider with mcpEnabled: true
+			const enabledMockProvider = {
+				ensureSettingsDirectoryExists: vi.fn().mockResolvedValue("/mock/settings/path"),
+				ensureMcpServersDirectoryExists: vi.fn().mockResolvedValue("/mock/settings/path"),
+				postMessageToWebview: vi.fn(),
+				getState: vi.fn().mockResolvedValue({ mcpEnabled: true }),
+				context: mockProvider.context,
+			}
+
+			// Mock the config file read with a different server name
+			vi.mocked(fs.readFile).mockResolvedValue(
+				JSON.stringify({
+					mcpServers: {
+						"enabled-test-server": {
+							command: "node",
+							args: ["test.js"],
+						},
+					},
+				}),
+			)
+
+			// Create a new McpHub instance with enabled MCP
+			const mcpHub = new McpHub(enabledMockProvider as unknown as ClineProvider)
+
+			// Wait for initialization
+			await new Promise((resolve) => setTimeout(resolve, 100))
+
+			// Find the enabled-test-server
+			const enabledServer = mcpHub.connections.find((conn) => conn.server.name === "enabled-test-server")
+
+			// Verify that the server is connected
+			expect(enabledServer).toBeDefined()
+			expect(enabledServer!.server.status).toBe("connected")
+			expect(enabledServer!.client).toBeDefined()
+			expect(enabledServer!.transport).toBeDefined()
+
+			// Verify StdioClientTransport was called
+			expect(StdioClientTransport).toHaveBeenCalled()
 		})
 	})
 
