@@ -34,47 +34,39 @@ export class TelemetryClient extends BaseTelemetryClient {
 
 		// Initialize queue and retry manager if context is provided
 		if (context) {
-			this.initializeQueueSystem()
-		}
-	}
+			// Initialize queue
+			this.queue = new TelemetryQueue(context, {
+				maxQueueSize: 1000,
+				maxRetries: 5,
+				queueSizeWarningThreshold: 100,
+			})
 
-	private initializeQueueSystem(): void {
-		if (!this.context) {
-			return
-		}
-
-		// Initialize queue
-		this.queue = new TelemetryQueue(this.context, {
-			maxQueueSize: 1000,
-			maxRetries: 5,
-			queueSizeWarningThreshold: 100,
-		})
-
-		// Initialize retry manager
-		this.retryManager = new TelemetryRetryManager(
-			this.queue,
-			async (event) => {
-				// Send event without queueing on retry
-				await this.sendEventDirect(event)
-			},
-			{
-				retryIntervalMs: 30000, // 30 seconds
-				batchSize: 10,
-				onConnectionStatusChange: (isConnected) => {
-					if (this.connectionStatusCallback) {
-						this.connectionStatusCallback(isConnected)
-					}
+			// Initialize retry manager
+			this.retryManager = new TelemetryRetryManager(
+				this.queue,
+				async (event) => {
+					// Send event without queueing on retry
+					await this.sendEventDirect(event)
 				},
-				onQueueSizeChange: (size, isAboveThreshold) => {
-					if (this.queueSizeCallback) {
-						this.queueSizeCallback(size, isAboveThreshold)
-					}
+				{
+					retryIntervalMs: 30000, // 30 seconds
+					batchSize: 10,
+					onConnectionStatusChange: (isConnected) => {
+						if (this.connectionStatusCallback) {
+							this.connectionStatusCallback(isConnected)
+						}
+					},
+					onQueueSizeChange: (size, isAboveThreshold) => {
+						if (this.queueSizeCallback) {
+							this.queueSizeCallback(size, isAboveThreshold)
+						}
+					},
 				},
-			},
-		)
+			)
 
-		// Start the retry manager
-		this.retryManager.start()
+			// Start the retry manager
+			this.retryManager.start()
+		}
 	}
 
 	/**
