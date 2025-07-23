@@ -596,7 +596,7 @@ describe("McpHub", () => {
 			await mcpHub.callTool("test-server", "some-tool", {})
 
 			// Verify the request was made with correct parameters
-			expect(mockConnection.client.request).toHaveBeenCalledWith(
+			expect(mockConnection.client!.request).toHaveBeenCalledWith(
 				{
 					method: "tools/call",
 					params: {
@@ -653,7 +653,7 @@ describe("McpHub", () => {
 				mcpHub.connections = [mockConnection]
 				await mcpHub.callTool("test-server", "test-tool")
 
-				expect(mockConnection.client.request).toHaveBeenCalledWith(
+				expect(mockConnection.client!.request).toHaveBeenCalledWith(
 					expect.anything(),
 					expect.anything(),
 					expect.objectContaining({ timeout: 60000 }), // 60 seconds in milliseconds
@@ -676,7 +676,7 @@ describe("McpHub", () => {
 				mcpHub.connections = [mockConnection]
 				await mcpHub.callTool("test-server", "test-tool")
 
-				expect(mockConnection.client.request).toHaveBeenCalledWith(
+				expect(mockConnection.client!.request).toHaveBeenCalledWith(
 					expect.anything(),
 					expect.anything(),
 					expect.objectContaining({ timeout: 120000 }), // 120 seconds in milliseconds
@@ -792,7 +792,7 @@ describe("McpHub", () => {
 				await mcpHub.callTool("test-server", "test-tool")
 
 				// Verify default timeout was used
-				expect(mockConnectionInvalid.client.request).toHaveBeenCalledWith(
+				expect(mockConnectionInvalid.client!.request).toHaveBeenCalledWith(
 					expect.anything(),
 					expect.anything(),
 					expect.objectContaining({ timeout: 60000 }), // Default 60 seconds
@@ -882,6 +882,85 @@ describe("McpHub", () => {
 		beforeEach(() => {
 			// Clear all mocks before each test
 			vi.clearAllMocks()
+		})
+
+		it("should disconnect all servers when MCP is toggled from enabled to disabled", async () => {
+			// Mock StdioClientTransport
+			const stdioModule = await import("@modelcontextprotocol/sdk/client/stdio.js")
+			const StdioClientTransport = stdioModule.StdioClientTransport as ReturnType<typeof vi.fn>
+
+			const mockTransport = {
+				start: vi.fn().mockResolvedValue(undefined),
+				close: vi.fn().mockResolvedValue(undefined),
+				stderr: {
+					on: vi.fn(),
+				},
+				onerror: null,
+				onclose: null,
+			}
+
+			StdioClientTransport.mockImplementation(() => mockTransport)
+
+			// Mock Client
+			const clientModule = await import("@modelcontextprotocol/sdk/client/index.js")
+			const Client = clientModule.Client as ReturnType<typeof vi.fn>
+
+			const mockClient = {
+				connect: vi.fn().mockResolvedValue(undefined),
+				close: vi.fn().mockResolvedValue(undefined),
+				getInstructions: vi.fn().mockReturnValue("test instructions"),
+				request: vi.fn().mockResolvedValue({ tools: [], resources: [], resourceTemplates: [] }),
+			}
+
+			Client.mockImplementation(() => mockClient)
+
+			// Start with MCP enabled
+			mockProvider.getState = vi.fn().mockResolvedValue({ mcpEnabled: true })
+
+			// Mock the config file read
+			vi.mocked(fs.readFile).mockResolvedValue(
+				JSON.stringify({
+					mcpServers: {
+						"toggle-test-server": {
+							command: "node",
+							args: ["test.js"],
+						},
+					},
+				}),
+			)
+
+			// Create McpHub and let it initialize with MCP enabled
+			const mcpHub = new McpHub(mockProvider as ClineProvider)
+			await new Promise((resolve) => setTimeout(resolve, 100))
+
+			// Verify server is connected
+			const connectedServer = mcpHub.connections.find((conn) => conn.server.name === "toggle-test-server")
+			expect(connectedServer).toBeDefined()
+			expect(connectedServer!.server.status).toBe("connected")
+			expect(connectedServer!.client).toBeDefined()
+			expect(connectedServer!.transport).toBeDefined()
+
+			// Now simulate toggling MCP to disabled
+			mockProvider.getState = vi.fn().mockResolvedValue({ mcpEnabled: false })
+
+			// Manually trigger what would happen when MCP is disabled
+			// (normally this would be triggered by the webview message handler)
+			const existingConnections = [...mcpHub.connections]
+			for (const conn of existingConnections) {
+				await mcpHub.deleteConnection(conn.server.name, conn.server.source)
+			}
+			await mcpHub.refreshAllConnections()
+
+			// Verify server is now tracked but disconnected
+			const disconnectedServer = mcpHub.connections.find((conn) => conn.server.name === "toggle-test-server")
+			expect(disconnectedServer).toBeDefined()
+			expect(disconnectedServer!.server.status).toBe("disconnected")
+			expect(disconnectedServer!.client).toBeNull()
+			expect(disconnectedServer!.transport).toBeNull()
+
+			// Verify close was called on the original client and transport
+			expect(mockClient.close).toHaveBeenCalled()
+			expect(mockTransport.close).toHaveBeenCalled()
 		})
 
 		it("should not connect to servers when MCP is globally disabled", async () => {
@@ -991,6 +1070,96 @@ describe("McpHub", () => {
 
 			// Verify StdioClientTransport was called
 			expect(StdioClientTransport).toHaveBeenCalled()
+		})
+
+		it("should handle refreshAllConnections when MCP is disabled", async () => {
+			// Mock provider with mcpEnabled: false
+			const disabledMockProvider = {
+				ensureSettingsDirectoryExists: vi.fn().mockResolvedValue("/mock/settings/path"),
+				ensureMcpServersDirectoryExists: vi.fn().mockResolvedValue("/mock/settings/path"),
+				postMessageToWebview: vi.fn(),
+				getState: vi.fn().mockResolvedValue({ mcpEnabled: false }),
+				context: mockProvider.context,
+			}
+
+			// Mock the config file read
+			vi.mocked(fs.readFile).mockResolvedValue(
+				JSON.stringify({
+					mcpServers: {
+						"refresh-test-server": {
+							command: "node",
+							args: ["test.js"],
+						},
+					},
+				}),
+			)
+
+			// Create McpHub with disabled MCP
+			const mcpHub = new McpHub(disabledMockProvider as unknown as ClineProvider)
+			await new Promise((resolve) => setTimeout(resolve, 100))
+
+			// Clear previous calls
+			vi.clearAllMocks()
+
+			// Call refreshAllConnections
+			await mcpHub.refreshAllConnections()
+
+			// Verify that servers are tracked but not connected
+			const server = mcpHub.connections.find((conn) => conn.server.name === "refresh-test-server")
+			expect(server).toBeDefined()
+			expect(server!.server.status).toBe("disconnected")
+			expect(server!.client).toBeNull()
+			expect(server!.transport).toBeNull()
+
+			// Verify postMessageToWebview was called to update the UI
+			expect(disabledMockProvider.postMessageToWebview).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "mcpServers",
+				}),
+			)
+		})
+
+		it("should skip restarting connection when MCP is disabled", async () => {
+			// Mock provider with mcpEnabled: false
+			const disabledMockProvider = {
+				ensureSettingsDirectoryExists: vi.fn().mockResolvedValue("/mock/settings/path"),
+				ensureMcpServersDirectoryExists: vi.fn().mockResolvedValue("/mock/settings/path"),
+				postMessageToWebview: vi.fn(),
+				getState: vi.fn().mockResolvedValue({ mcpEnabled: false }),
+				context: mockProvider.context,
+			}
+
+			// Mock the config file read
+			vi.mocked(fs.readFile).mockResolvedValue(
+				JSON.stringify({
+					mcpServers: {
+						"restart-test-server": {
+							command: "node",
+							args: ["test.js"],
+						},
+					},
+				}),
+			)
+
+			// Create McpHub with disabled MCP
+			const mcpHub = new McpHub(disabledMockProvider as unknown as ClineProvider)
+			await new Promise((resolve) => setTimeout(resolve, 100))
+
+			// Set isConnecting to false to ensure it's properly reset
+			mcpHub.isConnecting = false
+
+			// Try to restart a connection
+			await mcpHub.restartConnection("restart-test-server")
+
+			// Verify that isConnecting was reset to false
+			expect(mcpHub.isConnecting).toBe(false)
+
+			// Verify that the server remains disconnected
+			const server = mcpHub.connections.find((conn) => conn.server.name === "restart-test-server")
+			expect(server).toBeDefined()
+			expect(server!.server.status).toBe("disconnected")
+			expect(server!.client).toBeNull()
+			expect(server!.transport).toBeNull()
 		})
 	})
 

@@ -35,8 +35,8 @@ import { injectVariables } from "../../utils/config"
 
 export type McpConnection = {
 	server: McpServer
-	client: Client
-	transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
+	client: Client | null
+	transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport | null
 }
 
 // Base configuration schema for common settings
@@ -553,6 +553,48 @@ export class McpHub {
 		await this.initializeMcpServers("project")
 	}
 
+	/**
+	 * Creates a placeholder connection for disabled servers or when MCP is globally disabled
+	 * @param name The server name
+	 * @param config The server configuration
+	 * @param source The source of the server (global or project)
+	 * @param reason The reason for creating a placeholder (mcpDisabled or serverDisabled)
+	 * @returns A placeholder McpConnection object
+	 */
+	private createPlaceholderConnection(
+		name: string,
+		config: z.infer<typeof ServerConfigSchema>,
+		source: "global" | "project",
+		reason: "mcpDisabled" | "serverDisabled",
+	): McpConnection {
+		return {
+			server: {
+				name,
+				config: JSON.stringify(config),
+				status: "disconnected",
+				disabled: reason === "serverDisabled" ? true : config.disabled,
+				source,
+				projectPath: source === "project" ? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath : undefined,
+				errorHistory: [],
+			},
+			client: null,
+			transport: null,
+		}
+	}
+
+	/**
+	 * Checks if MCP is globally enabled
+	 * @returns Promise<boolean> indicating if MCP is enabled
+	 */
+	private async isMcpEnabled(): Promise<boolean> {
+		const provider = this.providerRef.deref()
+		if (!provider) {
+			return true // Default to enabled if provider is not available
+		}
+		const state = await provider.getState()
+		return state.mcpEnabled ?? true
+	}
+
 	private async connectToServer(
 		name: string,
 		config: z.infer<typeof ServerConfigSchema>,
@@ -562,49 +604,18 @@ export class McpHub {
 		await this.deleteConnection(name, source)
 
 		// Check if MCP is globally enabled
-		const provider = this.providerRef.deref()
-		if (provider) {
-			const state = await provider.getState()
-			const mcpEnabled = state.mcpEnabled ?? true
-
-			// Skip connecting if MCP is globally disabled
-			if (!mcpEnabled) {
-				// Still create a connection object to track the server, but don't actually connect
-				const connection: McpConnection = {
-					server: {
-						name,
-						config: JSON.stringify(config),
-						status: "disconnected",
-						disabled: config.disabled,
-						source,
-						projectPath:
-							source === "project" ? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath : undefined,
-						errorHistory: [],
-					},
-					client: null as any, // We won't actually create a client when MCP is disabled
-					transport: null as any, // We won't actually create a transport when MCP is disabled
-				}
-				this.connections.push(connection)
-				return
-			}
+		const mcpEnabled = await this.isMcpEnabled()
+		if (!mcpEnabled) {
+			// Still create a connection object to track the server, but don't actually connect
+			const connection = this.createPlaceholderConnection(name, config, source, "mcpDisabled")
+			this.connections.push(connection)
+			return
 		}
 
 		// Skip connecting to disabled servers
 		if (config.disabled) {
 			// Still create a connection object to track the server, but don't actually connect
-			const connection: McpConnection = {
-				server: {
-					name,
-					config: JSON.stringify(config),
-					status: "disconnected",
-					disabled: true,
-					source,
-					projectPath: source === "project" ? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath : undefined,
-					errorHistory: [],
-				},
-				client: null as any, // We won't actually create a client for disabled servers
-				transport: null as any, // We won't actually create a transport for disabled servers
-			}
+			const connection = this.createPlaceholderConnection(name, config, source, "serverDisabled")
 			this.connections.push(connection)
 			return
 		}
@@ -875,8 +886,8 @@ export class McpHub {
 			// Use the helper method to find the connection
 			const connection = this.findConnection(serverName, source)
 
-			if (!connection) {
-				throw new Error(`Server ${serverName} not found`)
+			if (!connection || !connection.client) {
+				throw new Error(`Server ${serverName} not found or not connected`)
 			}
 
 			const response = await connection.client.request({ method: "tools/list" }, ListToolsResultSchema)
@@ -930,7 +941,7 @@ export class McpHub {
 	private async fetchResourcesList(serverName: string, source?: "global" | "project"): Promise<McpResource[]> {
 		try {
 			const connection = this.findConnection(serverName, source)
-			if (!connection) {
+			if (!connection || !connection.client) {
 				return []
 			}
 			const response = await connection.client.request({ method: "resources/list" }, ListResourcesResultSchema)
@@ -947,7 +958,7 @@ export class McpHub {
 	): Promise<McpResourceTemplate[]> {
 		try {
 			const connection = this.findConnection(serverName, source)
-			if (!connection) {
+			if (!connection || !connection.client) {
 				return []
 			}
 			const response = await connection.client.request(
@@ -969,8 +980,12 @@ export class McpHub {
 
 		for (const connection of connections) {
 			try {
-				await connection.transport.close()
-				await connection.client.close()
+				if (connection.transport) {
+					await connection.transport.close()
+				}
+				if (connection.client) {
+					await connection.client.close()
+				}
 			} catch (error) {
 				console.error(`Failed to close transport for ${name}:`, error)
 			}
@@ -1123,16 +1138,9 @@ export class McpHub {
 
 	async restartConnection(serverName: string, source?: "global" | "project"): Promise<void> {
 		this.isConnecting = true
-		const provider = this.providerRef.deref()
-		if (!provider) {
-			return
-		}
 
 		// Check if MCP is globally enabled
-		const state = await provider.getState()
-		const mcpEnabled = state.mcpEnabled ?? true
-
-		// Skip restarting if MCP is globally disabled
+		const mcpEnabled = await this.isMcpEnabled()
 		if (!mcpEnabled) {
 			this.isConnecting = false
 			return
@@ -1177,26 +1185,20 @@ export class McpHub {
 		}
 
 		// Check if MCP is globally enabled
-		const provider = this.providerRef.deref()
-		if (provider) {
-			const state = await provider.getState()
-			const mcpEnabled = state.mcpEnabled ?? true
-
-			// Skip refreshing if MCP is globally disabled
-			if (!mcpEnabled) {
-				// Clear all existing connections
-				const existingConnections = [...this.connections]
-				for (const conn of existingConnections) {
-					await this.deleteConnection(conn.server.name, conn.server.source)
-				}
-
-				// Still initialize servers to track them, but they won't connect
-				await this.initializeMcpServers("global")
-				await this.initializeMcpServers("project")
-
-				await this.notifyWebviewOfServerChanges()
-				return
+		const mcpEnabled = await this.isMcpEnabled()
+		if (!mcpEnabled) {
+			// Clear all existing connections
+			const existingConnections = [...this.connections]
+			for (const conn of existingConnections) {
+				await this.deleteConnection(conn.server.name, conn.server.source)
 			}
+
+			// Still initialize servers to track them, but they won't connect
+			await this.initializeMcpServers("global")
+			await this.initializeMcpServers("project")
+
+			await this.notifyWebviewOfServerChanges()
+			return
 		}
 
 		this.isConnecting = true
@@ -1537,7 +1539,7 @@ export class McpHub {
 
 	async readResource(serverName: string, uri: string, source?: "global" | "project"): Promise<McpResourceResponse> {
 		const connection = this.findConnection(serverName, source)
-		if (!connection) {
+		if (!connection || !connection.client) {
 			throw new Error(`No connection found for server: ${serverName}${source ? ` with source ${source}` : ""}`)
 		}
 		if (connection.server.disabled) {
@@ -1561,7 +1563,7 @@ export class McpHub {
 		source?: "global" | "project",
 	): Promise<McpToolCallResponse> {
 		const connection = this.findConnection(serverName, source)
-		if (!connection) {
+		if (!connection || !connection.client) {
 			throw new Error(
 				`No connection found for server: ${serverName}${source ? ` with source ${source}` : ""}. Please make sure to use MCP servers available under 'Connected MCP Servers'.`,
 			)

@@ -206,6 +206,9 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 		return configTimeout ?? 60 // Default 1 minute (60 seconds)
 	})
 
+	// Computed property to check if server is expandable
+	const isExpandable = server.status === "connected" && !server.disabled
+
 	const timeoutOptions = [
 		{ value: 15, label: t("mcp:networkTimeout.options.15seconds") },
 		{ value: 30, label: t("mcp:networkTimeout.options.30seconds") },
@@ -235,7 +238,7 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 
 	const handleRowClick = () => {
 		// Only allow expansion for connected and enabled servers
-		if (server.status === "connected" && !server.disabled) {
+		if (isExpandable) {
 			setIsExpanded(!isExpanded)
 		}
 	}
@@ -276,13 +279,12 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 					alignItems: "center",
 					padding: "8px",
 					background: "var(--vscode-textCodeBlock-background)",
-					cursor: server.status === "connected" && !server.disabled ? "pointer" : "default",
-					borderRadius:
-						isExpanded || (server.status === "connected" && !server.disabled) ? "4px" : "4px 4px 0 0",
+					cursor: isExpandable ? "pointer" : "default",
+					borderRadius: isExpanded || isExpandable ? "4px" : "4px 4px 0 0",
 					opacity: server.disabled ? 0.6 : 1,
 				}}
 				onClick={handleRowClick}>
-				{server.status === "connected" && !server.disabled && (
+				{isExpandable && (
 					<span
 						className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}
 						style={{ marginRight: "8px" }}
@@ -349,7 +351,7 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 				</div>
 			</div>
 
-			{server.status === "connected" && !server.disabled
+			{isExpandable
 				? isExpanded && (
 						<div
 							style={{
