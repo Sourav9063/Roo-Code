@@ -82,9 +82,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	})
 
 	// Initialize telemetry status monitor
-	const telemetryStatusMonitor = new TelemetryStatusMonitor(context)
-	telemetryStatusMonitor.initialize()
-	context.subscriptions.push(telemetryStatusMonitor)
+	try {
+		const telemetryStatusMonitor = new TelemetryStatusMonitor(context)
+		telemetryStatusMonitor.initialize()
+		context.subscriptions.push(telemetryStatusMonitor)
+	} catch (error) {
+		outputChannel.appendLine(`[TelemetryStatusMonitor] Failed to initialize: ${error}`)
+	}
 
 	// Initialize MDM service
 	const mdmService = await MdmService.createInstance(cloudLogger)

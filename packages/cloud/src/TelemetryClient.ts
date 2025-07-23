@@ -283,5 +283,8 @@ export class TelemetryClient extends BaseTelemetryClient {
 		if (this.retryManager) {
 			this.retryManager.stop()
 		}
+		// Clear callbacks to prevent memory leaks
+		this.connectionStatusCallback = undefined
+		this.queueSizeCallback = undefined
 	}
 }

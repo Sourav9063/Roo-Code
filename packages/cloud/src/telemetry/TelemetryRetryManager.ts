@@ -42,9 +42,6 @@ export class TelemetryRetryManager {
 		this.retryTimer = setInterval(() => {
 			this.processQueue()
 		}, this.config.retryIntervalMs)
-
-		// Process immediately on start
-		this.processQueue()
 	}
 
 	/**
