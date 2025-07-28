@@ -87,6 +87,11 @@
 			"badRequest": "गलत अनुरोध: {{details}}",
 			"apiError": "Gemini CLI API त्रुटि: {{error}}",
 			"completionError": "Gemini CLI पूर्णता त्रुटि: {{error}}"
+		},
+		"gemini": {
+			"generate_stream": "जेमिनी जनरेट कॉन्टेक्स्ट स्ट्रीम त्रुटि: {{error}}",
+			"generate_complete_prompt": "जेमिनी समापन त्रुटि: {{error}}",
+			"sources": "स्रोत:"
 		}
 	},
 	"warnings": {

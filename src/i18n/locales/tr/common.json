@@ -87,6 +87,11 @@
 			"badRequest": "Geçersiz istek: {{details}}",
 			"apiError": "Gemini CLI API hatası: {{error}}",
 			"completionError": "Gemini CLI tamamlama hatası: {{error}}"
+		},
+		"gemini": {
+			"generate_stream": "Gemini oluşturma bağlam akışı hatası: {{error}}",
+			"generate_complete_prompt": "Gemini tamamlama hatası: {{error}}",
+			"sources": "Kaynaklar:"
 		}
 	},
 	"warnings": {

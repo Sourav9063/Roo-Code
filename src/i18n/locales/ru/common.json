@@ -87,6 +87,11 @@
 			"badRequest": "Неверный запрос: {{details}}",
 			"apiError": "Ошибка API Gemini CLI: {{error}}",
 			"completionError": "Ошибка завершения Gemini CLI: {{error}}"
+		},
+		"gemini": {
+			"generate_stream": "Ошибка потока контекста генерации Gemini: {{error}}",
+			"generate_complete_prompt": "Ошибка завершения Gemini: {{error}}",
+			"sources": "Источники:"
 		}
 	},
 	"warnings": {

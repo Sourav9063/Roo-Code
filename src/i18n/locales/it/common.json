@@ -87,6 +87,11 @@
 			"badRequest": "Richiesta non valida: {{details}}",
 			"apiError": "Errore API Gemini CLI: {{error}}",
 			"completionError": "Errore di completamento Gemini CLI: {{error}}"
+		},
+		"gemini": {
+			"generate_stream": "Errore del flusso di contesto di generazione Gemini: {{error}}",
+			"generate_complete_prompt": "Errore di completamento Gemini: {{error}}",
+			"sources": "Fonti:"
 		}
 	},
 	"warnings": {

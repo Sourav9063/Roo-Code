@@ -87,6 +87,11 @@
 			"badRequest": "不正なリクエスト: {{details}}",
 			"apiError": "Gemini CLI APIエラー: {{error}}",
 			"completionError": "Gemini CLI補完エラー: {{error}}"
+		},
+		"gemini": {
+			"generate_stream": "Gemini 生成コンテキスト ストリーム エラー: {{error}}",
+			"generate_complete_prompt": "Gemini 完了エラー: {{error}}",
+			"sources": "ソース:"
 		}
 	},
 	"warnings": {

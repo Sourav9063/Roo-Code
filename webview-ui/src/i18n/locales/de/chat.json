@@ -116,7 +116,9 @@
 		"title": "Modi",
 		"marketplace": "Modus-Marketplace",
 		"settings": "Modus-Einstellungen",
-		"description": "Spezialisierte Personas, die Roos Verhalten anpassen."
+		"description": "Spezialisierte Personas, die Roos Verhalten anpassen.",
+		"searchPlaceholder": "Modi suchen...",
+		"noResults": "Keine Ergebnisse gefunden"
 	},
 	"errorReadingFile": "Fehler beim Lesen der Datei:",
 	"noValidImages": "Keine gültigen Bilder wurden verarbeitet",
@@ -344,7 +346,14 @@
 		"description": "Führe Remote-Agenten in der Cloud aus, greife von überall auf deine Aufgaben zu, arbeite mit anderen zusammen und vieles mehr.",
 		"joinWaitlist": "Tritt der Warteliste bei, um frühen Zugang zu erhalten."
 	},
+	"command": {
+		"triggerDescription": "Starte den {{name}} Befehl"
+	},
 	"editMessage": {
 		"placeholder": "Bearbeite deine Nachricht..."
+	},
+	"queuedMessages": {
+		"title": "Warteschlange Nachrichten:",
+		"clickToEdit": "Klicken zum Bearbeiten der Nachricht"
 	}
 }

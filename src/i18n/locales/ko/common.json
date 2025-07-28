@@ -87,6 +87,11 @@
 			"badRequest": "잘못된 요청: {{details}}",
 			"apiError": "Gemini CLI API 오류: {{error}}",
 			"completionError": "Gemini CLI 완성 오류: {{error}}"
+		},
+		"gemini": {
+			"generate_stream": "Gemini 생성 컨텍스트 스트림 오류: {{error}}",
+			"generate_complete_prompt": "Gemini 완료 오류: {{error}}",
+			"sources": "출처:"
 		}
 	},
 	"warnings": {

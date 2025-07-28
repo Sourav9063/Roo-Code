@@ -87,6 +87,11 @@
 			"badRequest": "Permintaan tidak valid: {{details}}",
 			"apiError": "Kesalahan API Gemini CLI: {{error}}",
 			"completionError": "Kesalahan penyelesaian Gemini CLI: {{error}}"
+		},
+		"gemini": {
+			"generate_stream": "Kesalahan aliran konteks pembuatan Gemini: {{error}}",
+			"generate_complete_prompt": "Kesalahan penyelesaian Gemini: {{error}}",
+			"sources": "Sumber:"
 		}
 	},
 	"warnings": {

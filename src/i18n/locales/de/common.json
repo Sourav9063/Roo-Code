@@ -87,6 +87,11 @@
 			"badRequest": "Ungültige Anfrage: {{details}}",
 			"apiError": "Gemini CLI API-Fehler: {{error}}",
 			"completionError": "Gemini CLI Vervollständigungsfehler: {{error}}"
+		},
+		"gemini": {
+			"generate_stream": "Fehler beim Generieren des Kontext-Streams von Gemini: {{error}}",
+			"generate_complete_prompt": "Fehler bei der Vervollständigung durch Gemini: {{error}}",
+			"sources": "Quellen:"
 		}
 	},
 	"warnings": {

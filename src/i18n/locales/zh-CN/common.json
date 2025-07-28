@@ -92,6 +92,11 @@
 			"badRequest": "请求错误：{{details}}",
 			"apiError": "Gemini CLI API 错误：{{error}}",
 			"completionError": "Gemini CLI 补全错误：{{error}}"
+		},
+		"gemini": {
+			"generate_stream": "Gemini 生成上下文流错误：{{error}}",
+			"generate_complete_prompt": "Gemini 完成错误：{{error}}",
+			"sources": "来源："
 		}
 	},
 	"warnings": {
