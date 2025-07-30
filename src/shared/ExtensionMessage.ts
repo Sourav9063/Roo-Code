@@ -23,6 +23,9 @@ import type { MarketplaceItem } from "@roo-code/types"
 export interface Command {
 	name: string
 	source: "global" | "project"
+	filePath?: string
+	description?: string
+	argumentHint?: string
 }
 
 // Type for marketplace installed metadata
@@ -116,6 +119,7 @@ export interface ExtensionMessage {
 		| "showDeleteMessageDialog"
 		| "showEditMessageDialog"
 		| "commands"
+		| "insertTextIntoTextarea"
 	text?: string
 	payload?: any // Add a generic payload for now, can refine later
 	action?:
@@ -181,7 +185,9 @@ export interface ExtensionMessage {
 	organizationAllowList?: OrganizationAllowList
 	tab?: string
 	marketplaceItems?: MarketplaceItem[]
+	organizationMcps?: MarketplaceItem[]
 	marketplaceInstalledMetadata?: MarketplaceInstalledMetadata
+	errors?: string[]
 	visibility?: ShareVisibility
 	rulesFolderPath?: string
 	settings?: any
@@ -281,6 +287,8 @@ export type ExtensionState = Pick<
 	maxWorkspaceFiles: number // Maximum number of files to include in current working directory details (0-500)
 	showRooIgnoredFiles: boolean // Whether to show .rooignore'd files in listings
 	maxReadFileLine: number // Maximum number of lines to read from a file before truncating
+	maxImageFileSize: number // Maximum size of image files to process in MB
+	maxTotalImageSize: number // Maximum total size for all images in a single read operation in MB
 
 	experiments: Experiments // Map of experiment IDs to their enabled state
 

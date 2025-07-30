@@ -811,8 +811,7 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 
 	const selectImages = useCallback(() => vscode.postMessage({ type: "selectImages" }), [])
 
-	const shouldDisableImages =
-		!model?.supportsImages || sendingDisabled || selectedImages.length >= MAX_IMAGES_PER_MESSAGE
+	const shouldDisableImages = !model?.supportsImages || selectedImages.length >= MAX_IMAGES_PER_MESSAGE
 
 	const handleMessage = useCallback(
 		(e: MessageEvent) => {
@@ -1693,8 +1692,8 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	const handleKeyDown = useCallback(
 		(event: KeyboardEvent) => {
 			// Check for Command/Ctrl + Period (with or without Shift)
-			// Using event.code for better cross-platform compatibility
-			if ((event.metaKey || event.ctrlKey) && event.code === "Period") {
+			// Using event.key to respect keyboard layouts (e.g., Dvorak)
+			if ((event.metaKey || event.ctrlKey) && event.key === ".") {
 				event.preventDefault() // Prevent default browser behavior
 
 				if (event.shiftKey) {
