@@ -93,10 +93,9 @@ import { getMessagesSinceLastSummary, summarizeConversation } from "../condense"
 import { maybeRemoveImageBlocks } from "../../api/transform/image-cleaning"
 import { restoreTodoListForTask } from "../tools/updateTodoListTool"
 
-// Constants
 const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
 
-export type ClineEvents = {
+export type TaskEvents = {
 	message: [{ action: "created" | "updated"; message: ClineMessage }]
 	taskStarted: []
 	taskModeSwitched: [taskId: string, mode: string]
@@ -108,6 +107,10 @@ export type ClineEvents = {
 	taskCompleted: [taskId: string, tokenUsage: TokenUsage, toolUsage: ToolUsage]
 	taskTokenUsageUpdated: [taskId: string, tokenUsage: TokenUsage]
 	taskToolFailed: [taskId: string, tool: ToolName, error: string]
+}
+
+export type TaskEventHandlers = {
+	[K in keyof TaskEvents]: (...args: TaskEvents[K]) => void | Promise<void>
 }
 
 export type TaskOptions = {
@@ -125,10 +128,10 @@ export type TaskOptions = {
 	rootTask?: Task
 	parentTask?: Task
 	taskNumber?: number
-	onCreated?: (cline: Task) => void
+	onCreated?: (task: Task) => void
 }
 
-export class Task extends EventEmitter<ClineEvents> {
+export class Task extends EventEmitter<TaskEvents> {
 	todoList?: TodoItem[]
 	readonly taskId: string
 	readonly instanceId: string
@@ -137,6 +140,7 @@ export class Task extends EventEmitter<ClineEvents> {
 	readonly parentTask: Task | undefined = undefined
 	readonly taskNumber: number
 	readonly workspacePath: string
+
 	/**
 	 * The mode associated with this task. Persisted across sessions
 	 * to maintain user context when reopening tasks from history.
@@ -279,10 +283,12 @@ export class Task extends EventEmitter<ClineEvents> {
 		}
 
 		this.taskId = historyItem ? historyItem.id : crypto.randomUUID()
-		// normal use-case is usually retry similar history task with new workspace
+
+		// Normal use-case is usually retry similar history task with new workspace.
 		this.workspacePath = parentTask
 			? parentTask.workspacePath
 			: getWorkspacePath(path.join(os.homedir(), "Desktop"))
+
 		this.instanceId = crypto.randomUUID().slice(0, 8)
 		this.taskNumber = -1
 
@@ -311,25 +317,26 @@ export class Task extends EventEmitter<ClineEvents> {
 		this.parentTask = parentTask
 		this.taskNumber = taskNumber
 
-		// Store the task's mode when it's created
-		// For history items, use the stored mode; for new tasks, we'll set it after getting state
+		// Store the task's mode when it's created.
+		// For history items, use the stored mode; for new tasks, we'll set it
+		// after getting state.
 		if (historyItem) {
 			this._taskMode = historyItem.mode || defaultModeSlug
 			this.taskModeReady = Promise.resolve()
 			TelemetryService.instance.captureTaskRestarted(this.taskId)
 		} else {
-			// For new tasks, don't set the mode yet - wait for async initialization
+			// For new tasks, don't set the mode yet - wait for async initialization.
 			this._taskMode = undefined
 			this.taskModeReady = this.initializeTaskMode(provider)
 			TelemetryService.instance.captureTaskCreated(this.taskId)
 		}
 
-		// Only set up diff strategy if diff is enabled
+		// Only set up diff strategy if diff is enabled.
 		if (this.diffEnabled) {
-			// Default to old strategy, will be updated if experiment is enabled
+			// Default to old strategy, will be updated if experiment is enabled.
 			this.diffStrategy = new MultiSearchReplaceDiffStrategy(this.fuzzyMatchThreshold)
 
-			// Check experiment asynchronously and update strategy if needed
+			// Check experiment asynchronously and update strategy if needed.
 			provider.getState().then((state) => {
 				const isMultiFileApplyDiffEnabled = experiments.isEnabled(
 					state.experiments ?? {},
@@ -1163,30 +1170,24 @@ export class Task extends EventEmitter<ClineEvents> {
 			return "just now"
 		})()
 
-		const lastTaskResumptionIndex = newUserContent.findIndex(
-			(x) => x.type === "text" && x.text.startsWith("[TASK RESUMPTION]"),
-		)
-		if (lastTaskResumptionIndex !== -1) {
-			newUserContent.splice(lastTaskResumptionIndex, newUserContent.length - lastTaskResumptionIndex)
+		if (responseText) {
+			newUserContent.push({
+				type: "text",
+				text: `\n\nNew instructions for task continuation:\n<user_message>\n${responseText}\n</user_message>`,
+			})
 		}
-
-		const wasRecent = lastClineMessage?.ts && Date.now() - lastClineMessage.ts < 30_000
-
-		newUserContent.push({
-			type: "text",
-			text:
-				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.${
-					wasRecent
-						? "\n\nIMPORTANT: If the last tool use was a write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
-						: ""
-				}` +
-				(responseText
-					? `\n\nNew instructions for task continuation:\n<user_message>\n${responseText}\n</user_message>`
-					: ""),
-		})
 
 		if (responseImages && responseImages.length > 0) {
 			newUserContent.push(...formatResponse.imageBlocks(responseImages))
+		}
+
+		// Ensure we have at least some content to send to the API
+		// If newUserContent is empty, add a minimal resumption message
+		if (newUserContent.length === 0) {
+			newUserContent.push({
+				type: "text",
+				text: "[TASK RESUMPTION] Resuming task...",
+			})
 		}
 
 		await this.overwriteApiConversationHistory(modifiedApiConversationHistory)
@@ -1230,7 +1231,7 @@ export class Task extends EventEmitter<ClineEvents> {
 			}
 		} catch (error) {
 			console.error("Error disposing RooIgnoreController:", error)
-			// This is the critical one for the leak fix
+			// This is the critical one for the leak fix.
 		}
 
 		try {
@@ -1240,7 +1241,7 @@ export class Task extends EventEmitter<ClineEvents> {
 		}
 
 		try {
-			// If we're not streaming then `abortStream` won't be called
+			// If we're not streaming then `abortStream` won't be called.
 			if (this.isStreaming && this.diffViewProvider.isEditing) {
 				this.diffViewProvider.revertChanges().catch(console.error)
 			}
@@ -1847,6 +1848,7 @@ export class Task extends EventEmitter<ClineEvents> {
 
 	public async *attemptApiRequest(retryAttempt: number = 0): ApiStream {
 		const state = await this.providerRef.deref()?.getState()
+
 		const {
 			apiConfiguration,
 			autoApprovalEnabled,
@@ -1858,21 +1860,24 @@ export class Task extends EventEmitter<ClineEvents> {
 			profileThresholds = {},
 		} = state ?? {}
 
-		// Get condensing configuration for automatic triggers
+		// Get condensing configuration for automatic triggers.
 		const customCondensingPrompt = state?.customCondensingPrompt
 		const condensingApiConfigId = state?.condensingApiConfigId
 		const listApiConfigMeta = state?.listApiConfigMeta
 
-		// Determine API handler to use for condensing
+		// Determine API handler to use for condensing.
 		let condensingApiHandler: ApiHandler | undefined
+
 		if (condensingApiConfigId && listApiConfigMeta && Array.isArray(listApiConfigMeta)) {
-			// Using type assertion for the id property to avoid implicit any
+			// Using type assertion for the id property to avoid implicit any.
 			const matchingConfig = listApiConfigMeta.find((config: any) => config.id === condensingApiConfigId)
+
 			if (matchingConfig) {
 				const profile = await this.providerRef.deref()?.providerSettingsManager.getProfile({
 					id: condensingApiConfigId,
 				})
-				// Ensure profile and apiProvider exist before trying to build handler
+
+				// Ensure profile and apiProvider exist before trying to build handler.
 				if (profile && profile.apiProvider) {
 					condensingApiHandler = buildApiHandler(profile)
 				}
