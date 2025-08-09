@@ -900,12 +900,19 @@ export const webviewMessageHandler = async (
 		}
 		case "mcpEnabled":
 			const mcpEnabled = message.bool ?? true
+			const currentMcpEnabled = getGlobalState("mcpEnabled") ?? true
+
+			// Always update the state to ensure consistency
 			await updateGlobalState("mcpEnabled", mcpEnabled)
 
-			// Delegate MCP enable/disable logic to McpHub
-			const mcpHubInstance = provider.getMcpHub()
-			if (mcpHubInstance) {
-				await mcpHubInstance.handleMcpEnabledChange(mcpEnabled)
+			// Only refresh MCP connections if the value actually changed
+			// This prevents expensive MCP server refresh operations when saving unrelated settings
+			if (currentMcpEnabled !== mcpEnabled) {
+				// Delegate MCP enable/disable logic to McpHub
+				const mcpHubInstance = provider.getMcpHub()
+				if (mcpHubInstance) {
+					await mcpHubInstance.handleMcpEnabledChange(mcpEnabled)
+				}
 			}
 
 			await provider.postStateToWebview()
@@ -2224,7 +2231,15 @@ export const webviewMessageHandler = async (
 						await manager.initialize(provider.contextProxy)
 					}
 
+					// startIndexing now handles error recovery internally
 					manager.startIndexing()
+
+					// If startIndexing recovered from error, we need to reinitialize
+					if (!manager.isInitialized) {
+						await manager.initialize(provider.contextProxy)
+						// Try starting again after initialization
+						manager.startIndexing()
+					}
 				}
 			} catch (error) {
 				provider.log(`Error starting indexing: ${error instanceof Error ? error.message : String(error)}`)
