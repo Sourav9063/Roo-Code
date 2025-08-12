@@ -29,10 +29,11 @@ import {
 	getApiProtocol,
 	getModelId,
 	DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
+	DEFAULT_USAGE_COLLECTION_TIMEOUT_MS,
 	isBlockingAsk,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
-import { CloudService } from "@roo-code/cloud"
+import { CloudService, TaskBridgeService } from "@roo-code/cloud"
 
 // api
 import { ApiHandler, ApiHandlerCreateMessageMetadata, buildApiHandler } from "../../api"
@@ -107,6 +108,7 @@ export type TaskOptions = {
 	apiConfiguration: ProviderSettings
 	enableDiff?: boolean
 	enableCheckpoints?: boolean
+	enableTaskBridge?: boolean
 	fuzzyMatchThreshold?: number
 	consecutiveMistakeLimit?: number
 	task?: string
@@ -237,6 +239,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	checkpointService?: RepoPerTaskCheckpointService
 	checkpointServiceInitializing = false
 
+	// Task Bridge
+	enableTaskBridge: boolean
+	taskBridgeService: TaskBridgeService | null = null
+
 	// Streaming
 	isWaitingForFirstChunk = false
 	isStreaming = false
@@ -252,12 +258,15 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	didCompleteReadingStream = false
 	assistantMessageParser?: AssistantMessageParser
 	isAssistantMessageParserEnabled = false
+	private lastUsedInstructions?: string
+	private skipPrevResponseIdOnce: boolean = false
 
 	constructor({
 		provider,
 		apiConfiguration,
 		enableDiff = false,
 		enableCheckpoints = true,
+		enableTaskBridge = false,
 		fuzzyMatchThreshold = 1.0,
 		consecutiveMistakeLimit = DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
 		task,
@@ -306,6 +315,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.globalStoragePath = provider.context.globalStorageUri.fsPath
 		this.diffViewProvider = new DiffViewProvider(this.cwd, this)
 		this.enableCheckpoints = enableCheckpoints
+		this.enableTaskBridge = enableTaskBridge
 
 		this.rootTask = rootTask
 		this.parentTask = parentTask
@@ -738,6 +748,32 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.askResponseImages = images
 	}
 
+	public submitUserMessage(text: string, images?: string[]): void {
+		try {
+			const trimmed = (text ?? "").trim()
+			const imgs = images ?? []
+
+			if (!trimmed && imgs.length === 0) {
+				return
+			}
+
+			const provider = this.providerRef.deref()
+			if (!provider) {
+				console.error("[Task#submitUserMessage] Provider reference lost")
+				return
+			}
+
+			void provider.postMessageToWebview({
+				type: "invoke",
+				invoke: "sendMessage",
+				text: trimmed,
+				images: imgs,
+			})
+		} catch (error) {
+			console.error("[Task#submitUserMessage] Failed to submit user message:", error)
+		}
+	}
+
 	async handleTerminalOperation(terminalOperation: "continue" | "abort") {
 		if (terminalOperation === "continue") {
 			this.terminalProcess?.continue()
@@ -824,6 +860,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		progressStatus?: ToolProgressStatus,
 		options: {
 			isNonInteractive?: boolean
+			metadata?: Record<string, unknown>
 		} = {},
 		contextCondense?: ContextCondense,
 	): Promise<undefined> {
@@ -861,6 +898,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						images,
 						partial,
 						contextCondense,
+						metadata: options.metadata,
 					})
 				}
 			} else {
@@ -876,6 +914,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					lastMessage.images = images
 					lastMessage.partial = false
 					lastMessage.progressStatus = progressStatus
+					if (options.metadata) {
+						;(lastMessage as any).metadata = options.metadata
+					}
 
 					// Instead of streaming partialMessage events, we do a save
 					// and post like normal to persist to disk.
@@ -891,7 +932,15 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						this.lastMessageTs = sayTs
 					}
 
-					await this.addToClineMessages({ ts: sayTs, type: "say", say: type, text, images, contextCondense })
+					await this.addToClineMessages({
+						ts: sayTs,
+						type: "say",
+						say: type,
+						text,
+						images,
+						contextCondense,
+						metadata: options.metadata,
+					})
 				}
 			}
 		} else {
@@ -931,6 +980,22 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	// Start / Abort / Resume
 
 	private async startTask(task?: string, images?: string[]): Promise<void> {
+		if (this.enableTaskBridge && CloudService.hasInstance()) {
+			if (!this.taskBridgeService) {
+				const bridgeConfig = await CloudService.instance.cloudAPI?.bridgeConfig().catch(() => undefined)
+
+				if (bridgeConfig) {
+					this.taskBridgeService = await TaskBridgeService.createInstance({
+						...bridgeConfig,
+					})
+				}
+			}
+
+			if (this.taskBridgeService) {
+				await this.taskBridgeService.subscribeToTask(this)
+			}
+		}
+
 		// `conversationHistory` (for API) and `clineMessages` (for webview)
 		// need to be in sync.
 		// If the extension process were killed, then on restart the
@@ -982,6 +1047,22 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	}
 
 	private async resumeTaskFromHistory() {
+		if (this.enableTaskBridge && CloudService.hasInstance()) {
+			if (!this.taskBridgeService) {
+				const bridgeConfig = await CloudService.instance.cloudAPI?.bridgeConfig().catch(() => undefined)
+
+				if (bridgeConfig) {
+					this.taskBridgeService = await TaskBridgeService.createInstance({
+						...bridgeConfig,
+					})
+				}
+			}
+
+			if (this.taskBridgeService) {
+				await this.taskBridgeService.subscribeToTask(this)
+			}
+		}
+
 		const modifiedClineMessages = await this.getSavedClineMessages()
 
 		// Remove any resume messages that may have been added before
@@ -1225,6 +1306,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		if (this.pauseInterval) {
 			clearInterval(this.pauseInterval)
 			this.pauseInterval = undefined
+		}
+
+		// Unsubscribe from TaskBridge service.
+		if (this.taskBridgeService) {
+			this.taskBridgeService
+				.unsubscribeFromTask(this.taskId)
+				.catch((error) => console.error("Error unsubscribing from task bridge:", error))
+			this.taskBridgeService = null
 		}
 
 		// Release any terminals associated with this task.
@@ -1481,6 +1570,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// of prices in tasks from history (it's worth removing a few months
 			// from now).
 			const updateApiReqMsg = (cancelReason?: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
+				if (lastApiReqIndex < 0 || !this.clineMessages[lastApiReqIndex]) {
+					return
+				}
+
 				const existingData = JSON.parse(this.clineMessages[lastApiReqIndex].text || "{}")
 				this.clineMessages[lastApiReqIndex].text = JSON.stringify({
 					...existingData,
@@ -1571,7 +1664,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this.isStreaming = true
 
 			try {
-				for await (const chunk of stream) {
+				const iterator = stream[Symbol.asyncIterator]()
+				let item = await iterator.next()
+				while (!item.done) {
+					const chunk = item.value
+					item = await iterator.next()
 					if (!chunk) {
 						// Sometimes chunk is undefined, no idea that can cause
 						// it, but this workaround seems to fix it.
@@ -1639,16 +1736,165 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						break
 					}
 
-					// PREV: We need to let the request finish for openrouter to
-					// get generation details.
-					// UPDATE: It's better UX to interrupt the request at the
-					// cost of the API cost not being retrieved.
 					if (this.didAlreadyUseTool) {
 						assistantMessage +=
 							"\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]"
 						break
 					}
 				}
+
+				// Create a copy of current token values to avoid race conditions
+				const currentTokens = {
+					input: inputTokens,
+					output: outputTokens,
+					cacheWrite: cacheWriteTokens,
+					cacheRead: cacheReadTokens,
+					total: totalCost,
+				}
+
+				const drainStreamInBackgroundToFindAllUsage = async (apiReqIndex: number) => {
+					const timeoutMs = DEFAULT_USAGE_COLLECTION_TIMEOUT_MS
+					const startTime = Date.now()
+					const modelId = getModelId(this.apiConfiguration)
+
+					// Local variables to accumulate usage data without affecting the main flow
+					let bgInputTokens = currentTokens.input
+					let bgOutputTokens = currentTokens.output
+					let bgCacheWriteTokens = currentTokens.cacheWrite
+					let bgCacheReadTokens = currentTokens.cacheRead
+					let bgTotalCost = currentTokens.total
+
+					// Helper function to capture telemetry and update messages
+					const captureUsageData = async (
+						tokens: {
+							input: number
+							output: number
+							cacheWrite: number
+							cacheRead: number
+							total?: number
+						},
+						messageIndex: number = apiReqIndex,
+					) => {
+						if (tokens.input > 0 || tokens.output > 0 || tokens.cacheWrite > 0 || tokens.cacheRead > 0) {
+							// Update the shared variables atomically
+							inputTokens = tokens.input
+							outputTokens = tokens.output
+							cacheWriteTokens = tokens.cacheWrite
+							cacheReadTokens = tokens.cacheRead
+							totalCost = tokens.total
+
+							// Update the API request message with the latest usage data
+							updateApiReqMsg()
+							await this.saveClineMessages()
+
+							// Update the specific message in the webview
+							const apiReqMessage = this.clineMessages[messageIndex]
+							if (apiReqMessage) {
+								await this.updateClineMessage(apiReqMessage)
+							}
+
+							// Capture telemetry
+							TelemetryService.instance.captureLlmCompletion(this.taskId, {
+								inputTokens: tokens.input,
+								outputTokens: tokens.output,
+								cacheWriteTokens: tokens.cacheWrite,
+								cacheReadTokens: tokens.cacheRead,
+								cost:
+									tokens.total ??
+									calculateApiCostAnthropic(
+										this.api.getModel().info,
+										tokens.input,
+										tokens.output,
+										tokens.cacheWrite,
+										tokens.cacheRead,
+									),
+							})
+						}
+					}
+
+					try {
+						// Continue processing the original stream from where the main loop left off
+						let usageFound = false
+						let chunkCount = 0
+
+						// Use the same iterator that the main loop was using
+						while (!item.done) {
+							// Check for timeout
+							if (Date.now() - startTime > timeoutMs) {
+								console.warn(
+									`[Background Usage Collection] Timed out after ${timeoutMs}ms for model: ${modelId}, processed ${chunkCount} chunks`,
+								)
+								// Clean up the iterator before breaking
+								if (iterator.return) {
+									await iterator.return(undefined)
+								}
+								break
+							}
+
+							const chunk = item.value
+							item = await iterator.next()
+							chunkCount++
+
+							if (chunk && chunk.type === "usage") {
+								usageFound = true
+								bgInputTokens += chunk.inputTokens
+								bgOutputTokens += chunk.outputTokens
+								bgCacheWriteTokens += chunk.cacheWriteTokens ?? 0
+								bgCacheReadTokens += chunk.cacheReadTokens ?? 0
+								bgTotalCost = chunk.totalCost
+							}
+						}
+
+						if (
+							usageFound ||
+							bgInputTokens > 0 ||
+							bgOutputTokens > 0 ||
+							bgCacheWriteTokens > 0 ||
+							bgCacheReadTokens > 0
+						) {
+							// We have usage data either from a usage chunk or accumulated tokens
+							await captureUsageData(
+								{
+									input: bgInputTokens,
+									output: bgOutputTokens,
+									cacheWrite: bgCacheWriteTokens,
+									cacheRead: bgCacheReadTokens,
+									total: bgTotalCost,
+								},
+								lastApiReqIndex,
+							)
+						} else {
+							console.warn(
+								`[Background Usage Collection] Suspicious: request ${apiReqIndex} is complete, but no usage info was found. Model: ${modelId}`,
+							)
+						}
+					} catch (error) {
+						console.error("Error draining stream for usage data:", error)
+						// Still try to capture whatever usage data we have collected so far
+						if (
+							bgInputTokens > 0 ||
+							bgOutputTokens > 0 ||
+							bgCacheWriteTokens > 0 ||
+							bgCacheReadTokens > 0
+						) {
+							await captureUsageData(
+								{
+									input: bgInputTokens,
+									output: bgOutputTokens,
+									cacheWrite: bgCacheWriteTokens,
+									cacheRead: bgCacheReadTokens,
+									total: bgTotalCost,
+								},
+								lastApiReqIndex,
+							)
+						}
+					}
+				}
+
+				// Start the background task and handle any errors
+				drainStreamInBackgroundToFindAllUsage(lastApiReqIndex).catch((error) => {
+					console.error("Background usage collection failed:", error)
+				})
 			} catch (error) {
 				// Abandoned happens when extension is no longer waiting for the
 				// Cline instance to finish aborting (error is thrown here when
@@ -1680,24 +1926,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				}
 			} finally {
 				this.isStreaming = false
-			}
-
-			if (inputTokens > 0 || outputTokens > 0 || cacheWriteTokens > 0 || cacheReadTokens > 0) {
-				TelemetryService.instance.captureLlmCompletion(this.taskId, {
-					inputTokens,
-					outputTokens,
-					cacheWriteTokens,
-					cacheReadTokens,
-					cost:
-						totalCost ??
-						calculateApiCostAnthropic(
-							this.api.getModel().info,
-							inputTokens,
-							outputTokens,
-							cacheWriteTokens,
-							cacheReadTokens,
-						),
-				})
 			}
 
 			// Need to call here in case the stream was aborted.
@@ -1736,7 +1964,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				presentAssistantMessage(this)
 			}
 
-			updateApiReqMsg()
+			// Note: updateApiReqMsg() is now called from within drainStreamInBackgroundToFindAllUsage
+			// to ensure usage data is captured even when the stream is interrupted. The background task
+			// uses local variables to accumulate usage data before atomically updating the shared state.
+			await this.persistGpt5Metadata(reasoningMessage)
 			await this.saveClineMessages()
 			await this.providerRef.deref()?.postStateToWebview()
 
@@ -1954,6 +2185,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		Task.lastGlobalApiRequestTime = Date.now()
 
 		const systemPrompt = await this.getSystemPrompt()
+		this.lastUsedInstructions = systemPrompt
 		const { contextTokens } = this.getTokenUsage()
 
 		if (contextTokens) {
@@ -1992,6 +2224,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			if (truncateResult.error) {
 				await this.say("condense_context_error", truncateResult.error)
 			} else if (truncateResult.summary) {
+				// A condense operation occurred; for the next GPT‑5 API call we should NOT
+				// send previous_response_id so the request reflects the fresh condensed context.
+				this.skipPrevResponseIdOnce = true
+
 				const { summary, cost, prevContextTokens, newContextTokens = 0 } = truncateResult
 				const contextCondense: ContextCondense = { summary, cost, newContextTokens, prevContextTokens }
 				await this.say(
@@ -2008,7 +2244,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		const messagesSinceLastSummary = getMessagesSinceLastSummary(this.apiConversationHistory)
-		const cleanConversationHistory = maybeRemoveImageBlocks(messagesSinceLastSummary, this.api).map(
+		let cleanConversationHistory = maybeRemoveImageBlocks(messagesSinceLastSummary, this.api).map(
 			({ role, content }) => ({ role, content }),
 		)
 
@@ -2024,9 +2260,41 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			throw new Error("Auto-approval limit reached and user did not approve continuation")
 		}
 
+		// Determine GPT‑5 previous_response_id from last persisted assistant turn (if available),
+		// unless a condense just occurred (skip once after condense).
+		let previousResponseId: string | undefined = undefined
+		try {
+			const modelId = this.api.getModel().id
+			if (modelId && modelId.startsWith("gpt-5") && !this.skipPrevResponseIdOnce) {
+				// Find the last assistant message that has a previous_response_id stored
+				const idx = findLastIndex(
+					this.clineMessages,
+					(m) =>
+						m.type === "say" &&
+						(m as any).say === "text" &&
+						(m as any).metadata?.gpt5?.previous_response_id,
+				)
+				if (idx !== -1) {
+					// Use the previous_response_id from the last assistant message for this request
+					previousResponseId = ((this.clineMessages[idx] as any).metadata.gpt5.previous_response_id ||
+						undefined) as string | undefined
+				}
+			}
+		} catch {
+			// non-fatal
+		}
+
 		const metadata: ApiHandlerCreateMessageMetadata = {
 			mode: mode,
 			taskId: this.taskId,
+			...(previousResponseId ? { previousResponseId } : {}),
+			// If a condense just occurred, explicitly suppress continuity fallback for the next call
+			...(this.skipPrevResponseIdOnce ? { suppressPreviousResponseId: true } : {}),
+		}
+
+		// Reset skip flag after applying (it only affects the immediate next call)
+		if (this.skipPrevResponseIdOnce) {
+			this.skipPrevResponseIdOnce = false
 		}
 
 		const stream = this.api.createMessage(systemPrompt, cleanConversationHistory, metadata)
@@ -2169,6 +2437,35 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		if (error) {
 			this.emit(RooCodeEventName.TaskToolFailed, this.taskId, toolName, error)
+		}
+	}
+
+	/**
+	 * Persist GPT-5 per-turn metadata (previous_response_id, instructions, reasoning_summary)
+	 * onto the last complete assistant say("text") message.
+	 */
+	private async persistGpt5Metadata(reasoningMessage?: string): Promise<void> {
+		try {
+			const modelId = this.api.getModel().id
+			if (!modelId || !modelId.startsWith("gpt-5")) return
+
+			const lastResponseId: string | undefined = (this.api as any)?.getLastResponseId?.()
+			const idx = findLastIndex(
+				this.clineMessages,
+				(m) => m.type === "say" && (m as any).say === "text" && m.partial !== true,
+			)
+			if (idx !== -1) {
+				const msg = this.clineMessages[idx] as any
+				msg.metadata = msg.metadata ?? {}
+				msg.metadata.gpt5 = {
+					...(msg.metadata.gpt5 ?? {}),
+					previous_response_id: lastResponseId,
+					instructions: this.lastUsedInstructions,
+					reasoning_summary: (reasoningMessage ?? "").trim() || undefined,
+				}
+			}
+		} catch {
+			// Non-fatal error in metadata persistence
 		}
 	}
 

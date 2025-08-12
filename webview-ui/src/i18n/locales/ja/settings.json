@@ -263,6 +263,9 @@
 		"getChutesApiKey": "Chutes APIキーを取得",
 		"fireworksApiKey": "Fireworks APIキー",
 		"getFireworksApiKey": "Fireworks APIキーを取得",
+		"ioIntelligenceApiKey": "IO Intelligence APIキー",
+		"ioIntelligenceApiKeyPlaceholder": "IO Intelligence APIキーを入力してください",
+		"getIoIntelligenceApiKey": "IO Intelligence APIキーを取得",
 		"deepSeekApiKey": "DeepSeek APIキー",
 		"getDeepSeekApiKey": "DeepSeek APIキーを取得",
 		"doubaoApiKey": "Doubao APIキー",
@@ -429,6 +432,7 @@
 		},
 		"reasoningEffort": {
 			"label": "モデル推論の労力",
+			"minimal": "最小 (最速)",
 			"high": "高",
 			"medium": "中",
 			"low": "低"
