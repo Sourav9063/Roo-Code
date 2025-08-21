@@ -269,6 +269,8 @@
 		"getChutesApiKey": "Obter chave de API Chutes",
 		"fireworksApiKey": "Chave de API Fireworks",
 		"getFireworksApiKey": "Obter chave de API Fireworks",
+		"featherlessApiKey": "Chave de API Featherless",
+		"getFeatherlessApiKey": "Obter chave de API Featherless",
 		"ioIntelligenceApiKey": "Chave de API IO Intelligence",
 		"ioIntelligenceApiKeyPlaceholder": "Insira sua chave de API da IO Intelligence",
 		"getIoIntelligenceApiKey": "Obter chave de API IO Intelligence",
@@ -376,6 +378,10 @@
 		"humanRelay": {
 			"description": "Não é necessária chave de API, mas o usuário precisa ajudar a copiar e colar as informações para a IA do chat web.",
 			"instructions": "Durante o uso, uma caixa de diálogo será exibida e a mensagem atual será copiada para a área de transferência automaticamente. Você precisa colar isso nas versões web de IA (como ChatGPT ou Claude), depois copiar a resposta da IA de volta para a caixa de diálogo e clicar no botão confirmar."
+		},
+		"roo": {
+			"authenticatedMessage": "Autenticado com segurança através da sua conta Roo Code Cloud.",
+			"connectButton": "Conectar ao Roo Code Cloud"
 		},
 		"openRouter": {
 			"providerRouting": {

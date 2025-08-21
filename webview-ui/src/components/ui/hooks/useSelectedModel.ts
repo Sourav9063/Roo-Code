@@ -48,8 +48,12 @@ import {
 	mainlandZAiModels,
 	fireworksModels,
 	fireworksDefaultModelId,
+	featherlessModels,
+	featherlessDefaultModelId,
 	ioIntelligenceDefaultModelId,
 	ioIntelligenceModels,
+	rooDefaultModelId,
+	rooModels,
 	BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
 } from "@roo-code/types"
 
@@ -297,10 +301,20 @@ function getSelectedModel({
 			const info = fireworksModels[id as keyof typeof fireworksModels]
 			return { id, info }
 		}
+		case "featherless": {
+			const id = apiConfiguration.apiModelId ?? featherlessDefaultModelId
+			const info = featherlessModels[id as keyof typeof featherlessModels]
+			return { id, info }
+		}
 		case "io-intelligence": {
 			const id = apiConfiguration.ioIntelligenceModelId ?? ioIntelligenceDefaultModelId
 			const info =
 				routerModels["io-intelligence"]?.[id] ?? ioIntelligenceModels[id as keyof typeof ioIntelligenceModels]
+			return { id, info }
+		}
+		case "roo": {
+			const id = apiConfiguration.apiModelId ?? rooDefaultModelId
+			const info = rooModels[id as keyof typeof rooModels]
 			return { id, info }
 		}
 		// case "anthropic":

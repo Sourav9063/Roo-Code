@@ -269,6 +269,8 @@
 		"getChutesApiKey": "Chutes API-sleutel ophalen",
 		"fireworksApiKey": "Fireworks API-sleutel",
 		"getFireworksApiKey": "Fireworks API-sleutel ophalen",
+		"featherlessApiKey": "Featherless API-sleutel",
+		"getFeatherlessApiKey": "Featherless API-sleutel ophalen",
 		"ioIntelligenceApiKey": "IO Intelligence API-sleutel",
 		"ioIntelligenceApiKeyPlaceholder": "Voer je IO Intelligence API-sleutel in",
 		"getIoIntelligenceApiKey": "IO Intelligence API-sleutel ophalen",
@@ -376,6 +378,10 @@
 		"humanRelay": {
 			"description": "Geen API-sleutel vereist, maar de gebruiker moet helpen met kopiëren en plakken naar de webchat-AI.",
 			"instructions": "Tijdens gebruik verschijnt een dialoogvenster en wordt het huidige bericht automatisch naar het klembord gekopieerd. Je moet deze plakken in webversies van AI (zoals ChatGPT of Claude), vervolgens het antwoord van de AI terugkopiëren naar het dialoogvenster en op bevestigen klikken."
+		},
+		"roo": {
+			"authenticatedMessage": "Veilig geauthenticeerd via je Roo Code Cloud-account.",
+			"connectButton": "Verbinden met Roo Code Cloud"
 		},
 		"openRouter": {
 			"providerRouting": {

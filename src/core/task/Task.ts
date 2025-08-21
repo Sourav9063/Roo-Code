@@ -21,9 +21,6 @@ import {
 	type ClineMessage,
 	type ClineSay,
 	type ClineAsk,
-	type IdleAsk,
-	type ResumableAsk,
-	type InteractiveAsk,
 	type ToolProgressStatus,
 	type HistoryItem,
 	RooCodeEventName,
@@ -2229,6 +2226,8 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					todoListEnabled: apiConfiguration?.todoListEnabled ?? true,
 					useAgentRules: vscode.workspace.getConfiguration("roo-cline").get<boolean>("useAgentRules") ?? true,
 				},
+				undefined, // todoList
+				this.api.getModel().id,
 			)
 		})()
 	}
