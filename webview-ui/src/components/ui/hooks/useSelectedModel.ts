@@ -55,6 +55,8 @@ import {
 	rooDefaultModelId,
 	rooModels,
 	BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+	qwenCodeModels,
+	qwenCodeDefaultModelId,
 } from "@roo-code/types"
 
 import type { ModelRecord, RouterModels } from "@roo/api"
@@ -315,6 +317,11 @@ function getSelectedModel({
 		case "roo": {
 			const id = apiConfiguration.apiModelId ?? rooDefaultModelId
 			const info = rooModels[id as keyof typeof rooModels]
+			return { id, info }
+		}
+		case "qwen-code": {
+			const id = apiConfiguration.apiModelId ?? qwenCodeDefaultModelId
+			const info = qwenCodeModels[id as keyof typeof qwenCodeModels]
 			return { id, info }
 		}
 		// case "anthropic":
