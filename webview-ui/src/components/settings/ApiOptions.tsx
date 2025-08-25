@@ -427,6 +427,7 @@ const ApiOptions = ({
 
 			{selectedProvider === "requesty" && (
 				<Requesty
+					uriScheme={uriScheme}
 					apiConfiguration={apiConfiguration}
 					setApiConfigurationField={setApiConfigurationField}
 					routerModels={routerModels}
@@ -482,7 +483,11 @@ const ApiOptions = ({
 			)}
 
 			{selectedProvider === "vertex" && (
-				<Vertex apiConfiguration={apiConfiguration} setApiConfigurationField={setApiConfigurationField} />
+				<Vertex
+					apiConfiguration={apiConfiguration}
+					setApiConfigurationField={setApiConfigurationField}
+					fromWelcomeView={fromWelcomeView}
+				/>
 			)}
 
 			{selectedProvider === "gemini" && (
