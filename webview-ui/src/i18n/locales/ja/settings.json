@@ -233,6 +233,8 @@
 		"awsCustomArnDesc": "ARN内のリージョンが上で選択したAWSリージョンと一致していることを確認してください。",
 		"openRouterApiKey": "OpenRouter APIキー",
 		"getOpenRouterApiKey": "OpenRouter APIキーを取得",
+		"vercelAiGatewayApiKey": "Vercel AI Gateway APIキー",
+		"getVercelAiGatewayApiKey": "Vercel AI Gateway APIキーを取得",
 		"apiKeyStorageNotice": "APIキーはVSCodeのシークレットストレージに安全に保存されます",
 		"glamaApiKey": "Glama APIキー",
 		"getGlamaApiKey": "Glama APIキーを取得",
@@ -811,7 +813,8 @@
 		"modelAvailability": "指定されたモデルID（{{modelId}}）は利用できません。別のモデルを選択してください。",
 		"providerNotAllowed": "プロバイダー「{{provider}}」は組織によって許可されていません",
 		"modelNotAllowed": "モデル「{{model}}」はプロバイダー「{{provider}}」に対して組織によって許可されていません",
-		"profileInvalid": "このプロファイルには、組織によって許可されていないプロバイダーまたはモデルが含まれています"
+		"profileInvalid": "このプロファイルには、組織によって許可されていないプロバイダーまたはモデルが含まれています",
+		"qwenCodeOauthPath": "有効なOAuth認証情報のパスを提供する必要があります"
 	},
 	"placeholders": {
 		"apiKey": "API キーを入力...",

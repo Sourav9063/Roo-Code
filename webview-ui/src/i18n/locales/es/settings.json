@@ -233,6 +233,8 @@
 		"awsCustomArnDesc": "Asegúrese de que la región en el ARN coincida con la región de AWS seleccionada anteriormente.",
 		"openRouterApiKey": "Clave API de OpenRouter",
 		"getOpenRouterApiKey": "Obtener clave API de OpenRouter",
+		"vercelAiGatewayApiKey": "Clave API de Vercel AI Gateway",
+		"getVercelAiGatewayApiKey": "Obtener clave API de Vercel AI Gateway",
 		"apiKeyStorageNotice": "Las claves API se almacenan de forma segura en el Almacenamiento Secreto de VSCode",
 		"glamaApiKey": "Clave API de Glama",
 		"getGlamaApiKey": "Obtener clave API de Glama",
@@ -810,7 +812,8 @@
 		"modelAvailability": "El ID de modelo ({{modelId}}) que proporcionó no está disponible. Por favor, elija un modelo diferente.",
 		"providerNotAllowed": "El proveedor '{{provider}}' no está permitido por su organización",
 		"modelNotAllowed": "El modelo '{{model}}' no está permitido para el proveedor '{{provider}}' por su organización",
-		"profileInvalid": "Este perfil contiene un proveedor o modelo que no está permitido por su organización"
+		"profileInvalid": "Este perfil contiene un proveedor o modelo que no está permitido por su organización",
+		"qwenCodeOauthPath": "Debes proporcionar una ruta válida de credenciales OAuth"
 	},
 	"placeholders": {
 		"apiKey": "Ingrese clave API...",

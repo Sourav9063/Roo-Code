@@ -233,6 +233,8 @@
 		"awsCustomArnDesc": "请确保ARN中的区域与上方选择的AWS区域一致。",
 		"openRouterApiKey": "OpenRouter API 密钥",
 		"getOpenRouterApiKey": "获取 OpenRouter API 密钥",
+		"vercelAiGatewayApiKey": "Vercel AI Gateway API 密钥",
+		"getVercelAiGatewayApiKey": "获取 Vercel AI Gateway API 密钥",
 		"apiKeyStorageNotice": "API 密钥安全存储在 VSCode 的密钥存储中",
 		"glamaApiKey": "Glama API 密钥",
 		"getGlamaApiKey": "获取 Glama API 密钥",
@@ -811,7 +813,8 @@
 		"modelAvailability": "模型ID {{modelId}} 不可用，请重新选择",
 		"providerNotAllowed": "提供商 '{{provider}}' 不允许用于您的组织",
 		"modelNotAllowed": "模型 '{{model}}' 不允许用于提供商 '{{provider}}'，您的组织不允许",
-		"profileInvalid": "此配置文件包含您的组织不允许的提供商或模型"
+		"profileInvalid": "此配置文件包含您的组织不允许的提供商或模型",
+		"qwenCodeOauthPath": "您必须提供有效的 OAuth 凭证路径"
 	},
 	"placeholders": {
 		"apiKey": "请输入 API 密钥...",
