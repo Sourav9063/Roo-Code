@@ -58,6 +58,7 @@ import {
 	qwenCodeModels,
 	vercelAiGatewayDefaultModelId,
 	BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+	deepInfraDefaultModelId,
 } from "@roo-code/types"
 
 import type { ModelRecord, RouterModels } from "@roo/api"
@@ -274,6 +275,11 @@ function getSelectedModel({
 				id,
 				info: info || undefined,
 			}
+		}
+		case "deepinfra": {
+			const id = apiConfiguration.deepInfraModelId ?? deepInfraDefaultModelId
+			const info = routerModels.deepinfra?.[id]
+			return { id, info }
 		}
 		case "vscode-lm": {
 			const id = apiConfiguration?.vsCodeLmModelSelector

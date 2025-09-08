@@ -47,6 +47,11 @@ function validateModelsAndKeysProvided(apiConfiguration: ProviderSettings): stri
 				return i18next.t("settings:validation.apiKey")
 			}
 			break
+		case "deepinfra":
+			if (!apiConfiguration.deepInfraApiKey) {
+				return i18next.t("settings:validation.apiKey")
+			}
+			break
 		case "litellm":
 			if (!apiConfiguration.litellmApiKey) {
 				return i18next.t("settings:validation.apiKey")
@@ -196,6 +201,8 @@ function getModelIdForProvider(apiConfiguration: ProviderSettings, provider: str
 			return apiConfiguration.unboundModelId
 		case "requesty":
 			return apiConfiguration.requestyModelId
+		case "deepinfra":
+			return apiConfiguration.deepInfraModelId
 		case "litellm":
 			return apiConfiguration.litellmModelId
 		case "openai":
@@ -273,6 +280,9 @@ export function validateModelId(apiConfiguration: ProviderSettings, routerModels
 			break
 		case "requesty":
 			modelId = apiConfiguration.requestyModelId
+			break
+		case "deepinfra":
+			modelId = apiConfiguration.deepInfraModelId
 			break
 		case "ollama":
 			modelId = apiConfiguration.ollamaModelId
