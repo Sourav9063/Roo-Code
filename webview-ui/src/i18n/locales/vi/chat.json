@@ -221,6 +221,9 @@
 	},
 	"response": "Phản hồi",
 	"arguments": "Tham số",
+	"text": {
+		"rooSaid": "Roo đã nói"
+	},
 	"feedback": {
 		"youSaid": "Bạn đã nói"
 	},
@@ -254,6 +257,7 @@
 		"tooltipManage": "Quản lý cài đặt tự động phê duyệt",
 		"tooltipStatus": "Tự động phê duyệt được bật cho: {{toggles}}",
 		"title": "Tự động phê duyệt",
+		"toggle": "Bật/tắt tự động phê duyệt",
 		"all": "Tất cả",
 		"none": "Không có",
 		"description": "Thực hiện các hành động này mà không cần xin phép. Chỉ bật tính năng này cho các hành động bạn hoàn toàn tin tưởng.",
@@ -284,7 +288,7 @@
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} Đã phát hành",
 		"stealthModel": {
-			"feature": "<bold>Mô hình stealth MIỄN PHÍ có thời hạn</bold> - Code Supernova: Một mô hình lập trình agentic đa năng hỗ trợ đầu vào hình ảnh, có sẵn qua Roo Code Cloud.",
+			"feature": "<bold>Mô hình stealth MIỄN PHÍ có thời hạn</bold> - Code Supernova: Hiện đã được nâng cấp với <bold>cửa sổ ngữ cảnh 1M token</bold>! Một mô hình lập trình agentic đa năng hỗ trợ đầu vào hình ảnh, có sẵn qua Roo Code Cloud.",
 			"note": "(Lưu ý: các prompt và completion được ghi lại bởi người tạo mô hình và được sử dụng để cải thiện mô hình)",
 			"connectButton": "Kết nối với Roo Code Cloud",
 			"selectModel": "Chọn <code>roo/code-supernova</code> từ nhà cung cấp Roo Code Cloud trong Cài đặt để bắt đầu.",
@@ -318,8 +322,6 @@
 		"tooltips": {
 			"expand": "Mở rộng khối mã",
 			"collapse": "Thu gọn khối mã",
-			"enable_wrap": "Bật tự động xuống dòng",
-			"disable_wrap": "Tắt tự động xuống dòng",
 			"copy_code": "Sao chép mã"
 		}
 	},
